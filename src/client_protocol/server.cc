@@ -272,6 +272,12 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
 
     conn->enable_keepalive();
 
+    ip_and_port_t peer;
+    UNUSED bool res = conn->getpeername(&peer);
+    fprintf(stderr, "Driver connection from %s\n", peer.to_string().c_str());
+    auditINF("Driver connection from %s\n", peer.to_string().c_str());
+    audit_log_internal(log_level_info, "Hi\n");
+
     uint8_t version = 0;
     std::unique_ptr<auth::base_authenticator_t> authenticator;
     uint32_t error_code = 0;

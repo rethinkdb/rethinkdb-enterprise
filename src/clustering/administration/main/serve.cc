@@ -11,6 +11,7 @@
 #include "clustering/administration/http/server.hpp"
 #include "clustering/administration/issues/local.hpp"
 #include "clustering/administration/jobs/manager.hpp"
+#include "clustering/administration/logs/audit_log.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
 #include "clustering/administration/main/initial_join.hpp"
 #include "clustering/administration/main/ports.hpp"
@@ -116,6 +117,8 @@ bool do_serve(io_backender_t *io_backender,
         /* `thread_pool_log_writer_t` automatically registers itself. While it exists,
         log messages will be written using the event loop instead of blocking. */
         thread_pool_log_writer_t log_writer;
+
+        thread_pool_audit_log_writer_t audit_writer;
 
         cluster_semilattice_metadata_t cluster_metadata;
         auth_semilattice_metadata_t auth_metadata;

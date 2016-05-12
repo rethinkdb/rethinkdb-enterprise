@@ -18,6 +18,9 @@ void log_internal(const char *src_file, int src_line, log_level_t level, const c
 
 void vlog_internal(const char *src_file, int src_line, log_level_t level, const char *format, va_list args);
 
+void audit_log_internal(log_level_t level, const char *format, ...)
+    ATTR_FORMAT(printf, 2, 3);
+
 #ifndef NDEBUG
 #define logDBG(fmt, ...) log_internal(__FILE__, __LINE__, log_level_debug, (fmt), ##__VA_ARGS__)
 #define vlogDBG(fmt, args) vlog_internal(__FILE__, __LINE__, log_level_debug, (fmt), (args))
@@ -25,6 +28,8 @@ void vlog_internal(const char *src_file, int src_line, log_level_t level, const 
 #define logDBG(fmt, ...) ((void)0)
 #define vlogDBG(fmt, args) ((void)0)
 #endif
+
+#define auditINF(fmt, ...) audit_log_internal(log_level_info, (fmt), ##__VA_ARGS__)
 
 #define logINF(fmt, ...) log_internal(__FILE__, __LINE__, log_level_info, (fmt), ##__VA_ARGS__)
 #define logNTC(fmt, ...) log_internal(__FILE__, __LINE__, log_level_notice, (fmt), ##__VA_ARGS__)
