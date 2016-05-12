@@ -19,18 +19,23 @@ class audit_log_message_t {
 public:
     audit_log_message_t() { }
     // TODO remove this hack
-    explicit audit_log_message_t(std::string _message) : message(_message) { }
-    audit_log_message_t(struct timespec _timestamp,
-                        log_level_t _level,
-                         uuid_u _connection_id,
+    explicit audit_log_message_t(std::string _message) :
+        timestamp(clock_realtime()),
+            message(_message)
+    { }
+
+    audit_log_message_t(log_level_t _level,
+                        uuid_u _connection_id,
                         uuid_u _query_id,
                         std::string _message) :
-        timestamp(_timestamp),
         level(_level),
         connection_id(_connection_id),
         query_id(_query_id),
-        message(_message) { }
+        message(_message) {
+        timestamp = clock_realtime();
+    }
     struct timespec timestamp;
+    log_type_t type;
     log_level_t level;
     uuid_u connection_id;
     uuid_u query_id;
@@ -115,8 +120,9 @@ private:
 
 };
 
-void audit_log_internal(log_level_t level, const char *format, ...)
-    ATTR_FORMAT(printf, 2, 3);
+void audit_log_internal(log_type_t type, log_level_t level, const char *format, ...)
+    ATTR_FORMAT(printf, 3, 4);
+
 
 class thread_pool_audit_log_writer_t : public home_thread_mixin_t {
 public:
@@ -132,6 +138,14 @@ private:
 
     syslog_output_target_t syslog_target;
     file_output_target_t file_target;
+    file_output_target_t data_file_target;
+
+    base_path_t config_filename;
+
+    std::vector<file_output_target_t> file_targets;
+    std::map<int, audit_log_output_source_t *> priority_routing;
+    //TODO    std::map<std::string, audit_log_output_source_t *> text_routing;
+
     DISABLE_COPYING(thread_pool_audit_log_writer_t);
 };
 

@@ -274,9 +274,6 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
 
     ip_and_port_t peer;
     UNUSED bool res = conn->getpeername(&peer);
-    fprintf(stderr, "Driver connection from %s\n", peer.to_string().c_str());
-    auditINF("Driver connection from %s\n", peer.to_string().c_str());
-    audit_log_internal(log_level_info, "Hi\n");
 
     uint8_t version = 0;
     std::unique_ptr<auth::base_authenticator_t> authenticator;
@@ -487,6 +484,7 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
     }
 
     if (!error_message.empty()) {
+        // TODO: add auditing for failed connections as well
         try {
             if (version < 10) {
                 std::string error = "ERROR: " + error_message + "\n";
@@ -510,6 +508,12 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         } catch (const tcp_conn_write_closed_exc_t &) {
             // Writing the error message failed, there is nothing we can do at this point
         }
+    } else {
+        std::string log_message = strprintf(
+            "%s connected from %s\n",
+            authenticator->get_authenticated_username().to_string().c_str(),
+            peer.to_string().c_str());
+        auditINF(log_message.c_str());
     }
 }
 

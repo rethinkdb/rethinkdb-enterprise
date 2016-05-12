@@ -9,6 +9,8 @@
 
 enum log_level_t { log_level_debug = 0, log_level_info = 1, log_level_notice, log_level_warn, log_level_error };
 
+enum class log_type_t { log, data };
+
 /* These functions are implemented in `clustering/administration/logs/log_writer.cc`.
 This header file exists so that anything can call them without having to include the same
 things that `clustering/administration/logs/log_writer.hpp` does. */
@@ -18,8 +20,8 @@ void log_internal(const char *src_file, int src_line, log_level_t level, const c
 
 void vlog_internal(const char *src_file, int src_line, log_level_t level, const char *format, va_list args);
 
-void audit_log_internal(log_level_t level, const char *format, ...)
-    ATTR_FORMAT(printf, 2, 3);
+void audit_log_internal(log_type_t type, log_level_t level, const char *format, ...)
+    ATTR_FORMAT(printf, 3, 4);
 
 #ifndef NDEBUG
 #define logDBG(fmt, ...) log_internal(__FILE__, __LINE__, log_level_debug, (fmt), ##__VA_ARGS__)
@@ -29,7 +31,8 @@ void audit_log_internal(log_level_t level, const char *format, ...)
 #define vlogDBG(fmt, args) ((void)0)
 #endif
 
-#define auditINF(fmt, ...) audit_log_internal(log_level_info, (fmt), ##__VA_ARGS__)
+#define auditINF(fmt, ...) audit_log_internal(log_type_t::log, log_level_info, (fmt), ##__VA_ARGS__)
+#define auditDataINF(fmt, ...) audit_log_internal(log_type_t::data, log_level_info, (fmt), ##__VA_ARGS__)
 
 #define logINF(fmt, ...) log_internal(__FILE__, __LINE__, log_level_info, (fmt), ##__VA_ARGS__)
 #define logNTC(fmt, ...) log_internal(__FILE__, __LINE__, log_level_notice, (fmt), ##__VA_ARGS__)

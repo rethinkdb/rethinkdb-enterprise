@@ -7,12 +7,41 @@
 
 #include "arch/runtime/thread_pool.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
-#import "thread_local.hpp"
+#include "rapidjson/document.h"
+#include "rapidjson/error/en.h"
+#include "rapidjson/filereadstream.h"
+#include "thread_local.hpp"
 
 
 thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
-    file_target("rethinkdb_audit.log") {
+    file_target("rethinkdb_audit.log"),
+    data_file_target("rethinkdb_audit_data.log"),
+    config_filename("audit_config.json") {
+
+    // Prepare file logs to be written to.
     file_target.install();
+    data_file_target.install();
+
+    config_filename.make_absolute();
+
+    char readBuffer[65536];
+    FILE *fp = fopen(config_filename.path().c_str(), "r");
+    rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
+
+    rapidjson::Document d;
+
+    if (d.ParseStream(is).HasParseError()) {
+        fprintf(stderr, "\nAudit Config file Error(offset %u): %s\n", 
+                (unsigned)d.GetErrorOffset(),
+                GetParseError_En(d.GetParseError()));
+        fprintf(stderr, "Using default auditing configuration.\n");
+    }
+
+    // Read configuration for auditing settings
+
+    // TODO, actually do this
+
+    fclose(fp);
     pmap(
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
@@ -44,9 +73,14 @@ void thread_pool_audit_log_writer_t::uninstall_on_thread(int i) {
 
 std::string thread_pool_audit_log_writer_t::format_audit_log_message(
     const audit_log_message_t &msg) {
+    // TODO: actual formatting depending on settings
     std::string msg_string;
-
-    msg_string = strprintf("%s\n", msg.message.c_str());
+    std::string prepend = strprintf("%s %s: ",
+                                    format_time(msg.timestamp, local_or_utc_time_t::utc).c_str(),
+                                    format_log_level(msg.level).c_str());
+    msg_string = strprintf("%s%s",
+                           prepend.c_str(),
+                           msg.message.c_str());
 
     return msg_string;
 }
@@ -55,23 +89,29 @@ void thread_pool_audit_log_writer_t::write(const audit_log_message_t &msg) {
     // TODO: read configuration and routing and filtering information and route logs.
 
     // ALSO TODO: implement those things so we can read them.
-    file_target.write(msg);
-    syslog_target.write(msg);
+    if (msg.type == log_type_t::log) {
+        file_target.write(msg);
+    } else {
+        data_file_target.write(msg);
+        syslog_target.write(msg);
+    }
 }
 
 void audit_log_coro(thread_pool_audit_log_writer_t *writer,
-                    log_level_t,
+                    log_type_t type,
+                    log_level_t level,
                     const std::string &message,
                     auto_drainer_t::lock_t) {
     on_thread_t thread_switcher(writer->home_thread());
 
     // TODO: actually properly construct these writers
     audit_log_message_t log_msg = audit_log_message_t(message);
-    log_msg.level = log_level_info;
+    log_msg.type = type;
+    log_msg.level = level;
     writer->write(log_msg);
 }
 
-void vaudit_log_internal(log_level_t level, const char *format, va_list args) {
+void vaudit_log_internal(log_type_t type, log_level_t level, const char *format, va_list args) {
     thread_pool_audit_log_writer_t *writer;
     writer = TLS_get_global_audit_log_writer();
     int writer_block = TLS_get_audit_log_writer_block();
@@ -82,6 +122,7 @@ void vaudit_log_internal(log_level_t level, const char *format, va_list args) {
             boost::bind(
                 &audit_log_coro,
                 writer,
+                type,
                 level,
                 message,
                 lock));
@@ -92,10 +133,10 @@ void vaudit_log_internal(log_level_t level, const char *format, va_list args) {
     }
 }
 
-void audit_log_internal(log_level_t level, const char *format, ...) {
+void audit_log_internal(log_type_t type, log_level_t level, const char *format, ...) {
     va_list args;
     va_start(args, format);
-    vaudit_log_internal(level, format, args);
+    vaudit_log_internal(type, level, format, args);
     va_end(args);
 }
 
