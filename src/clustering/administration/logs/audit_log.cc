@@ -10,7 +10,9 @@
 #import "thread_local.hpp"
 
 
-thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() {
+thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
+    file_target("rethinkdb_audit.log") {
+    file_target.install();
     pmap(
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
@@ -40,10 +42,20 @@ void thread_pool_audit_log_writer_t::uninstall_on_thread(int i) {
     TLS_set_global_audit_log_drainer(nullptr);
 }
 
+std::string thread_pool_audit_log_writer_t::format_audit_log_message(
+    const audit_log_message_t &msg) {
+    std::string msg_string;
+
+    msg_string = strprintf("%s\n", msg.message.c_str());
+
+    return msg_string;
+}
+
 void thread_pool_audit_log_writer_t::write(const audit_log_message_t &msg) {
     // TODO: read configuration and routing and filtering information and route logs.
 
     // ALSO TODO: implement those things so we can read them.
+    file_target.write(msg);
     syslog_target.write(msg);
 }
 
@@ -87,7 +99,36 @@ void audit_log_internal(log_level_t level, const char *format, ...) {
     va_end(args);
 }
 
+void syslog_output_target_t::write_internal(const audit_log_message_t &msg, std::string *, bool *ok_out) {
+    int priority_level = 0;
+    switch (msg.level) {
+    case log_level_info:
+        priority_level = LOG_INFO;
+        break;
+    case log_level_notice:
+        priority_level = LOG_NOTICE;
+        break;
+    case log_level_debug:
+        priority_level = LOG_DEBUG;
+        break;
+    case log_level_warn:
+        priority_level = LOG_WARNING;
+        break;
+    case log_level_error:
+        priority_level = LOG_ERR;
+        break;
+    default:
+        unreachable();
+    }
+    // TODO: Does this need anything else?
+    syslog(priority_level, "%s",
+           thread_pool_audit_log_writer_t::format_audit_log_message(msg).c_str());
+    *ok_out = true;
+    return;
+}
+
 void syslog_output_target_t::write(const audit_log_message_t &msg) {
+    // Don't need to lock anything for syslog
     std::string error_message;
     bool ok;
     thread_pool_t::run_in_blocker_pool(
@@ -100,8 +141,52 @@ void syslog_output_target_t::write(const audit_log_message_t &msg) {
 
     //TODO proper error reporting
     if (ok) {
-        fprintf(stderr, "Audit log message ok\n");
+        fprintf(stderr, "Audit syslog log message ok\n");
     } else {
-        fprintf(stderr, "Audit log message FAILED\n");
+        fprintf(stderr, "Audit syslog log message FAILED\n");
     }
+}
+
+void file_output_target_t::write(const audit_log_message_t &msg) {
+    // Lock for file access
+    new_mutex_acq_t write_acq(&write_mutex);
+    std::string error_message;
+    bool ok;
+    thread_pool_t::run_in_blocker_pool(
+        boost::bind(
+            &file_output_target_t::write_internal,
+            this,
+            msg,
+            &error_message,
+            &ok));
+
+    //TODO proper error reporting
+    if (ok) {
+        fprintf(stderr, "Audit file log message ok\n");
+    } else {
+        fprintf(stderr, "Audit file log message FAILED\n");
+    }
+}
+
+void file_output_target_t::write_internal(const audit_log_message_t &msg, std::string *error_out, bool *ok_out) {
+    FILE* write_stream = nullptr;
+    int fileno = -1;
+    int priority_level = 0;
+
+    if (fd.get() == INVALID_FD) {
+        error_out->assign("cannot open or find log file");
+        *ok_out = false;
+        return;
+    }
+
+    std::string msg_str = thread_pool_audit_log_writer_t::format_audit_log_message(msg);
+    ssize_t write_res = ::write(fd.get(), msg_str.data(), msg_str.length());
+    if (write_res != static_cast<ssize_t>(msg_str.length())) {
+        error_out->assign("Cannot write to log file: " + errno_string(get_errno()));
+        *ok_out = false;
+        return;
+    }
+
+    *ok_out = true;
+    return;
 }

@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "arch/io/disk.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
 #include "concurrency/new_mutex.hpp"
 #include "containers/uuid.hpp"
@@ -48,10 +49,54 @@ public:
     virtual ~audit_log_output_target_t() { }
 
     // Maybe I can't actually generalize the locking behavior, we'll see
-    virtual void write_internal(const audit_log_message_t &msg, std::string *err_msg, bool *ok) = 0;
+    virtual void write_internal(const audit_log_message_t &msg, std::string *err_msg, bool *ok_out) = 0;
     virtual void write(const audit_log_message_t &msg) = 0;
 protected:
     new_mutex_t write_mutex;
+};
+
+class file_output_target_t : public audit_log_output_target_t {
+public:
+    file_output_target_t(std::string _filename) :
+        audit_log_output_target_t(),
+        filename(base_path_t(_filename)) { }
+
+    void write(const audit_log_message_t &msg) final;
+
+    void install() {
+        int res;
+        do {
+            res = open(filename.path().c_str(), O_WRONLY|O_APPEND|O_CREAT, 0644);
+        } while (res == INVALID_FD && get_errno() == EINTR);
+
+        fd.reset(res);
+        if (fd.get() == INVALID_FD) {
+            throw std::runtime_error(strprintf("Failed to open log file '%s': %s",
+                                               filename.path().c_str(),
+                                               errno_string(errno).c_str()).c_str());
+        }
+        // Get the absolute path for the log file, so it will still be valid if
+        //  the working directory changes
+        filename.make_absolute();
+
+        // For the case that the log file was newly created,
+        // call fsync() on the parent directory to guarantee that its
+        // directory entry is persisted to disk.
+        int sync_res = fsync_parent_directory(filename.path().c_str());
+        if (sync_res != 0) {
+            char errno_str_buf[250];
+            const char *errno_str = errno_string_maybe_using_buffer(sync_res,
+                                                                    errno_str_buf, sizeof(errno_str_buf));
+            logWRN("Parent directory of log file (%s) could not be synced. (%s)\n",
+                   filename.path().c_str(), errno_str);
+        }
+    }
+
+private:
+    void write_internal(const audit_log_message_t &msg, std::string *err_msg, bool *ok_out) final;
+
+    scoped_fd_t fd;
+    base_path_t filename;
 };
 
 class syslog_output_target_t : public audit_log_output_target_t {
@@ -65,31 +110,9 @@ public:
     }
 
     void write(const audit_log_message_t &msg) final;
-    void write_internal(const audit_log_message_t &msg, std::string *, bool *ok) final {
-        int priority_level = 0;
-        switch (msg.level) {
-        case log_level_info:
-            priority_level = LOG_INFO;
-            break;
-        case log_level_notice:
-            priority_level = LOG_NOTICE;
-            break;
-        case log_level_debug:
-            priority_level = LOG_DEBUG;
-            break;
-        case log_level_warn:
-            priority_level = LOG_WARNING;
-            break;
-        case log_level_error:
-            priority_level = LOG_ERR;
-            break;
-        default:
-            unreachable();
-        }
-        // TODO: Does this need anything else?
-        syslog(priority_level, "%s", msg.message.c_str());
-        *ok = true;
-    }
+private:
+    void write_internal(const audit_log_message_t &msg, std::string *, bool *ok_out) final;
+
 };
 
 void audit_log_internal(log_level_t level, const char *format, ...)
@@ -100,6 +123,7 @@ public:
     thread_pool_audit_log_writer_t();
     ~thread_pool_audit_log_writer_t();
 
+    static std::string format_audit_log_message(const audit_log_message_t &msg);
     void write(const audit_log_message_t &msg);
 
 private:
@@ -107,6 +131,7 @@ private:
     void uninstall_on_thread(int i);
 
     syslog_output_target_t syslog_target;
+    file_output_target_t file_target;
     DISABLE_COPYING(thread_pool_audit_log_writer_t);
 };
 
