@@ -68,8 +68,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
                         auto tag = string_to_type.find(it->GetString());
                         if (tag == string_to_type.end()) {
                             //TODO handle these errors better
-                            fprintf(stderr,
-                                    "Config Error: unknown tag %s\n",
+                            logWRN("Auditing config Error: unknown tag %s\n",
                                     it->GetString());
                         } else {
                             new_file->tags.insert(tag->second);
@@ -82,7 +81,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
         }
     }
 
-    // TODO don't require syslog
     if (d["syslog"].IsObject()) {
         int min_severity;
         if (d["syslog"]["min_severity"].IsInt()) {
@@ -98,7 +96,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
 
         file_targets.push_back(std::move(syslog_target));
     }
-    // TODO, actually do this
 
     fclose(fp);
     pmap(
@@ -285,12 +282,8 @@ void syslog_output_target_t::write(const audit_log_message_t &msg) {
             &error_message,
             &ok));
 
-    //TODO proper error reporting
-    if (ok) {
-        fprintf(stderr, "Audit syslog log message ok\n");
-    } else {
-        fprintf(stderr, "Audit syslog log message FAILED\n");
-    }
+    // Syslog should never fail
+    guarantee(ok == true);
 }
 
 void file_output_target_t::write(const audit_log_message_t &msg) {
@@ -306,10 +299,7 @@ void file_output_target_t::write(const audit_log_message_t &msg) {
             &error_message,
             &ok));
 
-    //TODO proper error reporting
-    if (ok) {
-        fprintf(stderr, "Audit file log message ok\n");
-    } else {
-        fprintf(stderr, "Audit file log message FAILED\n");
+    if (!ok) {
+        logERR("Auditing failed to write to file.\n");
     }
 }
