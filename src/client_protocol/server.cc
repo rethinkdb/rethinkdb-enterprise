@@ -514,8 +514,8 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
             authenticator->get_authenticated_username().to_string().c_str(),
             peer.to_string().c_str());
         auditINF(log_type_t::log, log_message.c_str());
-        //        auditWRN(log_type_t::blarg, "This should be in blarg.log\n");
-        //        auditWRN(log_type_t::blah, "This should be in blah.log\n");
+        auditWRN(log_type_t::blarg, "This should be in blarg.log\n");
+        auditWRN(log_type_t::blah, "This should be in blah.log\n");
     }
 }
 

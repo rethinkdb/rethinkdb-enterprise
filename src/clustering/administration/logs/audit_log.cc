@@ -159,11 +159,12 @@ void thread_pool_audit_log_writer_t::write(const audit_log_message_t &msg) {
         if (static_cast<int>(msg.type) == 3) {
             fprintf(stderr, "3");
         }
-        
-        fprintf(stderr, "Writing a log message with tag %d\n", msg.type);
-        //if (it->second->tags.find(msg.type) != it->second->tags.end()) {
-        it->second->write(msg);
-            //}
+
+        if (it->second->tags.empty() ||
+            it->second->tags.find(msg.type) != it->second->tags.end()) {
+            fprintf(stderr, "Writing a log message with tag %d\n", msg.type);
+            it->second->write(msg);
+        }
     }
 }
 
@@ -267,9 +268,8 @@ void syslog_output_target_t::write_internal(const audit_log_message_t &msg, std:
     default:
         unreachable();
     }
-    // TODO: Does this need anything else?
-    //    syslog(priority_level, "%s",
-    //        thread_pool_audit_log_writer_t::format_audit_log_message(msg).c_str());
+    syslog(priority_level, "%s",
+           thread_pool_audit_log_writer_t::format_audit_log_message(msg).c_str());
     *ok_out = true;
 }
 
