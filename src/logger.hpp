@@ -7,9 +7,18 @@
 
 #include "arch/compiler.hpp"
 
-enum log_level_t { log_level_debug = 0, log_level_info = 1, log_level_notice, log_level_warn, log_level_error };
+enum log_level_t { log_level_debug = 0,
+                   log_level_info = 1,
+                   log_level_notice,
+                   log_level_warn,
+                   log_level_error,
+                   log_level_critical,
+                   log_level_alert,
+                   log_level_emergency};
 
-enum class log_type_t { log, data };
+// These should all be in the string_to_type map in audit_log.hpp
+enum class log_type_t { log, data, blah, blarg};
+
 
 /* These functions are implemented in `clustering/administration/logs/log_writer.cc`.
 This header file exists so that anything can call them without having to include the same
@@ -31,8 +40,10 @@ void audit_log_internal(log_type_t type, log_level_t level, const char *format, 
 #define vlogDBG(fmt, args) ((void)0)
 #endif
 
-#define auditINF(fmt, ...) audit_log_internal(log_type_t::log, log_level_info, (fmt), ##__VA_ARGS__)
-#define auditDataINF(fmt, ...) audit_log_internal(log_type_t::data, log_level_info, (fmt), ##__VA_ARGS__)
+#define auditINF(type, fmt, ...) audit_log_internal(type, log_level_info, (fmt), ##__VA_ARGS__)
+#define auditNTC(type, fmt, ...) audit_log_internal(type, log_level_notice, (fmt), ##__VA_ARGS__)
+#define auditWRN(type, fmt, ...) audit_log_internal(type, log_level_warn, (fmt), ##__VA_ARGS__)
+#define auditERR(type, fmt, ...) audit_log_internal(type, log_level_error, (fmt), ##__VA_ARGS__)
 
 #define logINF(fmt, ...) log_internal(__FILE__, __LINE__, log_level_info, (fmt), ##__VA_ARGS__)
 #define logNTC(fmt, ...) log_internal(__FILE__, __LINE__, log_level_notice, (fmt), ##__VA_ARGS__)

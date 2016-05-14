@@ -10,6 +10,7 @@
 #include "arch/io/disk.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
 #include "concurrency/new_mutex.hpp"
+#include "containers/counted.hpp"
 #include "containers/uuid.hpp"
 
 #include "logger.hpp"
@@ -47,8 +48,9 @@ RDB_DECLARE_SERIALIZABLE(audit_log_message_t);
 // Handles output to a file, syslog, or other output target.
 // Should also handle locking for non thread-safe resources used for output.
 
-class audit_log_output_target_t {
+class audit_log_output_target_t : public slow_atomic_countable_t<audit_log_output_target_t> {
 public:
+    friend class thread_pool_audit_log_writer_t;
     audit_log_output_target_t() { }
 
     virtual ~audit_log_output_target_t() { }
@@ -56,6 +58,8 @@ public:
     // Maybe I can't actually generalize the locking behavior, we'll see
     virtual void write_internal(const audit_log_message_t &msg, std::string *err_msg, bool *ok_out) = 0;
     virtual void write(const audit_log_message_t &msg) = 0;
+
+    std::set<log_type_t> tags;
 protected:
     new_mutex_t write_mutex;
 };
@@ -65,6 +69,9 @@ public:
     file_output_target_t(std::string _filename) :
         audit_log_output_target_t(),
         filename(base_path_t(_filename)) { }
+
+    virtual ~file_output_target_t() final {
+    }
 
     void write(const audit_log_message_t &msg) final;
 
@@ -100,8 +107,8 @@ public:
 private:
     void write_internal(const audit_log_message_t &msg, std::string *err_msg, bool *ok_out) final;
 
-    scoped_fd_t fd;
     base_path_t filename;
+    scoped_fd_t fd;
 };
 
 class syslog_output_target_t : public audit_log_output_target_t {
@@ -136,16 +143,13 @@ private:
     void install_on_thread(int i);
     void uninstall_on_thread(int i);
 
-    syslog_output_target_t syslog_target;
-    file_output_target_t file_target;
-    file_output_target_t data_file_target;
-
     base_path_t config_filename;
 
-    std::vector<file_output_target_t> file_targets;
-    std::map<int, audit_log_output_source_t *> priority_routing;
-    //TODO    std::map<std::string, audit_log_output_source_t *> text_routing;
+    std::vector<counted_t<audit_log_output_target_t> > file_targets;
+    std::multimap<int, counted_t<audit_log_output_target_t> > priority_routing;
 
+    new_mutex_t write_mutex;
+    auto_drainer_t drainer;
     DISABLE_COPYING(thread_pool_audit_log_writer_t);
 };
 
