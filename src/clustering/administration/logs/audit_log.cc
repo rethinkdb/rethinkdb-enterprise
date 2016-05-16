@@ -41,6 +41,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
 
     config_filename.make_absolute();
 
+    // TODO: I can probably do this with nice shiny C++ streams.
     char readBuffer[65536];
     FILE *fp = fopen(config_filename.path().c_str(), "r");
     rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
@@ -128,7 +129,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
     fclose(fp);
 }
 thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
-    fprintf(stderr, "DESTRUCTOR CALLED\n");
     pmap(
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::uninstall_on_thread, this, _1));
@@ -170,8 +170,6 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
 
 void thread_pool_audit_log_writer_t::write(const audit_log_message_t &msg) {
     new_mutex_acq_t blah(&write_mutex);
-    // TODO: read configuration and routing and filtering information and route logs.
-    fprintf(stderr, "Writing a log message with priority %d\n", msg.level);
     // Select targets by configured severity level
     for (auto it = priority_routing.begin();
          it != priority_routing.upper_bound(static_cast<int>(msg.level));
@@ -182,7 +180,6 @@ void thread_pool_audit_log_writer_t::write(const audit_log_message_t &msg) {
         // TODO: negative tags or something, this system is kinda cumbersome
         if (it->second->tags.empty() ||
             it->second->tags.find(msg.type) != it->second->tags.end()) {
-            fprintf(stderr, "Writing a log message with tag %d\n", msg.type);
             it->second->write(msg);
         }
     }
@@ -209,7 +206,6 @@ void vaudit_log_internal(log_type_t type, log_level_t level, const char *format,
     if (writer != nullptr && writer_block == 0) {
         auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
         std::string message = vstrprintf(format, args);
-        fprintf(stderr, "Spawn sometime!\n");
         coro_t::spawn_sometime(
             boost::bind(
                 &audit_log_coro,
@@ -221,14 +217,12 @@ void vaudit_log_internal(log_type_t type, log_level_t level, const char *format,
     } else {
         // TODO: change this to something that actually solves the problem,
         // or at least fails properly.
-        fprintf(stderr, "global audit writer not ready for some freaking reason.\n");
     }
 }
 
 void audit_log_internal
 (log_type_t type, log_level_t level, const char *format, ...) {
     if (TLS_get_global_audit_log_writer()->enable_auditing()) {
-        fprintf(stderr, "Is this doesn't print, I guess fprintf is delayed\n");
         va_list args;
         va_start(args, format);
         vaudit_log_internal(type, level, format, args);
@@ -256,7 +250,6 @@ void file_output_target_t::write_internal(const audit_log_message_t &msg, std::s
         return;
     }
 
-    fprintf(stderr, "Successfully wrote to file \n");
     *ok_out = true;
     return;
 }
@@ -296,36 +289,18 @@ void syslog_output_target_t::write_internal(const audit_log_message_t &msg, std:
     *ok_out = true;
 }
 
-void syslog_output_target_t::write(const audit_log_message_t &msg) {
+void audit_log_output_target_t::write(const audit_log_message_t &msg) {
     new_mutex_acq_t write_acq(&write_mutex);
     std::string error_message;
     bool ok;
     thread_pool_t::run_in_blocker_pool(
-        boost::bind(
-            &syslog_output_target_t::write_internal,
-            this,
-            msg,
-            &error_message,
-            &ok));
-
-    // Syslog should never fail
-    guarantee(ok == true);
-}
-
-void file_output_target_t::write(const audit_log_message_t &msg) {
-    // Lock for file access
-    new_mutex_acq_t write_acq(&write_mutex);
-    std::string error_message;
-    bool ok;
-    thread_pool_t::run_in_blocker_pool(
-        boost::bind(
-            &file_output_target_t::write_internal,
-            this,
-            msg,
-            &error_message,
-            &ok));
+        [&]() {
+            return write_internal(msg,
+                                  &error_message,
+                                  &ok);
+        });
 
     if (!ok) {
-        logERR("Auditing failed to write to file.\n");
+        logERR("Failed to write to audit log.\n");
     }
 }

@@ -57,9 +57,11 @@ public:
 
     // Maybe I can't actually generalize the locking behavior, we'll see
     virtual void write_internal(const audit_log_message_t &msg, std::string *err_msg, bool *ok_out) = 0;
-    virtual void write(const audit_log_message_t &msg) = 0;
+    void write(const audit_log_message_t &msg);
 
     std::set<log_type_t> tags;
+
+    std::deque<counted_t<audit_log_message_t> > pending_messages;
 protected:
     new_mutex_t write_mutex;
 };
@@ -72,8 +74,6 @@ public:
 
     virtual ~file_output_target_t() final {
     }
-
-    void write(const audit_log_message_t &msg) final;
 
     void install() {
         int res;
@@ -121,7 +121,6 @@ public:
         closelog();
     }
 
-    void write(const audit_log_message_t &msg) final;
 private:
     void write_internal(const audit_log_message_t &msg, std::string *, bool *ok_out) final;
 
