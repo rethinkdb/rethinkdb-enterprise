@@ -16,7 +16,7 @@
 #include "logger.hpp"
 #include "utils.hpp"
 
-class audit_log_message_t {
+class audit_log_message_t : public slow_atomic_countable_t<audit_log_message_t> {
 public:
     audit_log_message_t() { }
     // TODO remove this hack
@@ -51,19 +51,27 @@ RDB_DECLARE_SERIALIZABLE(audit_log_message_t);
 class audit_log_output_target_t : public slow_atomic_countable_t<audit_log_output_target_t> {
 public:
     friend class thread_pool_audit_log_writer_t;
-    audit_log_output_target_t() { }
+    audit_log_output_target_t() : writing(false) { }
 
     virtual ~audit_log_output_target_t() { }
 
     // Maybe I can't actually generalize the locking behavior, we'll see
-    virtual void write_internal(const audit_log_message_t &msg, std::string *err_msg, bool *ok_out) = 0;
-    void write(const audit_log_message_t &msg);
+    virtual void write_internal(counted_t<audit_log_message_t> msg, std::string *err_msg, bool *ok_out) = 0;
+
+    void write();
+    void emplace_message(counted_t<audit_log_message_t> msg);
 
     std::set<log_type_t> tags;
 
     std::deque<counted_t<audit_log_message_t> > pending_messages;
 protected:
+    new_mutex_t queue_mutex;
     new_mutex_t write_mutex;
+    new_mutex_t write_flag_mutex;
+
+    bool writing;
+
+    auto_drainer_t drainer;
 };
 
 class file_output_target_t : public audit_log_output_target_t {
@@ -105,7 +113,7 @@ public:
     }
 
 private:
-    void write_internal(const audit_log_message_t &msg, std::string *err_msg, bool *ok_out) final;
+    void write_internal(counted_t<audit_log_message_t> msg, std::string *err_msg, bool *ok_out) final;
 
     base_path_t filename;
     scoped_fd_t fd;
@@ -122,8 +130,7 @@ public:
     }
 
 private:
-    void write_internal(const audit_log_message_t &msg, std::string *, bool *ok_out) final;
-
+    void write_internal(counted_t<audit_log_message_t> msg, std::string *err_msg, bool *ok_out) final;
 };
 
 void audit_log_internal(log_type_t type, log_level_t level, const char *format, ...)
@@ -135,8 +142,8 @@ public:
     thread_pool_audit_log_writer_t();
     ~thread_pool_audit_log_writer_t();
 
-    static std::string format_audit_log_message(const audit_log_message_t &msg);
-    void write(const audit_log_message_t &msg);
+    static std::string format_audit_log_message(counted_t<audit_log_message_t> msg);
+    void write(counted_t<audit_log_message_t> msg);
 
     bool enable_auditing() { return _enable_auditing; }
 private:

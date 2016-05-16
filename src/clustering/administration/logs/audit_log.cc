@@ -56,9 +56,8 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
 
         // Disable auditing and exit
         _enable_auditing = false;
-        return;
-    } else if (d.HasMember("enable_auditing") && d["enable_auditing"].GetBool() == true) {
-
+    } else if (d.HasMember("enable_auditing") && d["enable_auditing"].GetBool() == false) {
+        _enable_auditing = false;
     } else {
         // TODO, add a default for everything rapidjson reads,
         // and check things exist before reading them
@@ -108,7 +107,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
         }
     }
 
-    if (d.HasMember("syslog") && d["syslog"].IsObject()) {
+    if (_enable_auditing && d.HasMember("syslog") && d["syslog"].IsObject()) {
         int min_severity;
         if (d["syslog"]["min_severity"].IsInt()) {
             min_severity = d["syslog"]["min_severity"].GetInt();
@@ -126,6 +125,11 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
         logWRN("Syslog output is not configured for auditing.");
     }
 
+    if (_enable_auditing) {
+        logNTC("Audit logging enabled.\n");
+    } else {
+        logNTC("Audit logging disabled\n");
+    }
     fclose(fp);
 }
 thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
@@ -154,33 +158,33 @@ void thread_pool_audit_log_writer_t::uninstall_on_thread(int i) {
 }
 
 std::string thread_pool_audit_log_writer_t::format_audit_log_message(
-    const audit_log_message_t &msg) {
+    counted_t<audit_log_message_t> msg) {
     // TODO: actual formatting depending on settings
     std::string msg_string;
     std::string prepend = strprintf("%s UTC %s [%s]: ",
-                                    format_time(msg.timestamp, local_or_utc_time_t::utc).c_str(),
-                                    format_log_level(msg.level).c_str(),
-                                    type_to_string[msg.type].c_str());
+                                    format_time(msg->timestamp, local_or_utc_time_t::utc).c_str(),
+                                    format_log_level(msg->level).c_str(),
+                                    type_to_string[msg->type].c_str());
     msg_string = strprintf("%s%s",
                            prepend.c_str(),
-                           msg.message.c_str());
+                           msg->message.c_str());
 
     return msg_string;
 }
 
-void thread_pool_audit_log_writer_t::write(const audit_log_message_t &msg) {
+void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
     new_mutex_acq_t blah(&write_mutex);
     // Select targets by configured severity level
     for (auto it = priority_routing.begin();
-         it != priority_routing.upper_bound(static_cast<int>(msg.level));
+         it != priority_routing.upper_bound(static_cast<int>(msg->level));
          ++it) {
         // TODO: make sure this logic works
         guarantee(it != priority_routing.end());
 
         // TODO: negative tags or something, this system is kinda cumbersome
         if (it->second->tags.empty() ||
-            it->second->tags.find(msg.type) != it->second->tags.end()) {
-            it->second->write(msg);
+            it->second->tags.find(msg->type) != it->second->tags.end()) {
+            it->second->emplace_message(msg);
         }
     }
 }
@@ -193,9 +197,9 @@ void audit_log_coro(thread_pool_audit_log_writer_t *writer,
     on_thread_t thread_switcher(writer->home_thread());
     auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
     // TODO: actually properly construct these writers
-    audit_log_message_t log_msg = audit_log_message_t(message);
-    log_msg.type = type;
-    log_msg.level = level;
+    counted_t<audit_log_message_t> log_msg = make_counted<audit_log_message_t>(message);
+    log_msg->type = type;
+    log_msg->level = level;
     writer->write(log_msg);
 }
 
@@ -231,7 +235,8 @@ void audit_log_internal
 }
 
 
-void file_output_target_t::write_internal(const audit_log_message_t &msg, std::string *error_out, bool *ok_out) {
+void file_output_target_t::write_internal(counted_t<audit_log_message_t> msg, std::string *error_out, bool *ok_out) {
+    new_mutex_acq_t write_acq(&write_mutex);
     FILE* write_stream = nullptr;
     int fileno = -1;
     int priority_level = 0;
@@ -254,9 +259,10 @@ void file_output_target_t::write_internal(const audit_log_message_t &msg, std::s
     return;
 }
 
-void syslog_output_target_t::write_internal(const audit_log_message_t &msg, std::string *, bool *ok_out) {
+void syslog_output_target_t::write_internal(counted_t<audit_log_message_t> msg, std::string *, bool *ok_out) {
+    new_mutex_acq_t write_acq(&write_mutex);
     int priority_level = 0;
-    switch (msg.level) {
+    switch (msg->level) {
     case log_level_info:
         priority_level = LOG_INFO;
         break;
@@ -289,18 +295,42 @@ void syslog_output_target_t::write_internal(const audit_log_message_t &msg, std:
     *ok_out = true;
 }
 
-void audit_log_output_target_t::write(const audit_log_message_t &msg) {
-    new_mutex_acq_t write_acq(&write_mutex);
-    std::string error_message;
-    bool ok;
-    thread_pool_t::run_in_blocker_pool(
-        [&]() {
-            return write_internal(msg,
-                                  &error_message,
-                                  &ok);
-        });
+void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> msg) {
+    {
+        // Get mutex to modify queue.
+        new_mutex_acq_t write_acq(&queue_mutex);
 
-    if (!ok) {
-        logERR("Failed to write to audit log.\n");
+        // Add new message to write queue
+        pending_messages.push_back(msg);
+    }
+
+    if (!writing) {
+        new_mutex_acq_t write_flag_acq(&write_flag_mutex);
+        writing = true;
+        thread_pool_t::run_in_blocker_pool(
+            [&]() {
+                write();
+                writing = false;
+            });
     }
 }
+
+void audit_log_output_target_t::write() {
+    std::string error_message;
+    bool ok = true;
+    // Do the actual writing
+    while (pending_messages.size() > 0) {
+        counted_t<audit_log_message_t> msg;
+        {
+            new_mutex_acq_t write_acq(&queue_mutex);
+            msg = pending_messages.front();
+            pending_messages.pop_front();
+        }
+        write_internal(msg,
+                       &error_message,
+                       &ok);
+        if (!ok) {
+            logERR("Failed to write to audit log: %s", error_message.c_str());
+        }
+    }
+};
