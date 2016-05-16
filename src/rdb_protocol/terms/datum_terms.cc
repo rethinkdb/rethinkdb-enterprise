@@ -4,6 +4,7 @@
 #include <string>
 
 #include "rdb_protocol/op.hpp"
+#include "clustering/administration/logs/audit_log.hpp"
 
 namespace ql {
 
@@ -53,6 +54,7 @@ public:
 
 private:
     virtual scoped_ptr_t<val_t> eval_impl(scope_env_t *env, args_t *args, eval_flags_t) const {
+        auditINF(log_type_t::log, "Test logging for arrays.\n");
         datum_array_builder_t acc(env->env->limits());
         acc.reserve(args->num_args());
         {

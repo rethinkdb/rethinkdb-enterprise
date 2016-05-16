@@ -13,14 +13,31 @@
 #include "thread_local.hpp"
 
 // Setup type routing
-std::map<std::string, log_type_t> string_to_type{
+// TODO: is there a better format for this back-and-forth table?
+
+std::map<std::string, log_type_t> string_to_type {
     {"log", log_type_t::log},
+    {"query", log_type_t::query},
+    {"connection", log_type_t::connection},
     {"data", log_type_t::data},
     {"blarg", log_type_t::blarg},
     {"blah", log_type_t::blah}};
 
+std::map<log_type_t, std::string> type_to_string {
+    {log_type_t::log, "log"},
+    {log_type_t::query, "query"},
+    {log_type_t::connection, "connection"},
+    {log_type_t::data, "data"},
+    {log_type_t::blarg, "blarg"},
+    {log_type_t::blah,"blah"}};
+
 thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
-    config_filename("audit_config.json") {
+    config_filename("audit_config.json"),
+    _enable_auditing(true) {
+
+    pmap(
+        get_num_threads(),
+        boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
 
     config_filename.make_absolute();
 
@@ -31,57 +48,66 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
     rapidjson::Document d;
 
     if (d.ParseStream(is).HasParseError()) {
-        fprintf(stderr, "\nAudit Config file Error(offset %u): %s\n", 
+        logERR("\nAudit Config file Error(offset %u): %s\n",
                 (unsigned)d.GetErrorOffset(),
                 GetParseError_En(d.GetParseError()));
-        fprintf(stderr, "Using default auditing configuration.\n");
+        logERR("Using default auditing configuration.\n");
+
+        // Disable auditing and exit
+        _enable_auditing = false;
+        return;
+    } else if (d.HasMember("enable_auditing") && d["enable_auditing"].GetBool() == true) {
+
     } else {
         // TODO, add a default for everything rapidjson reads,
         // and check things exist before reading them
         // TODO don't require files
         // Parse output file configuration from config file.
-        guarantee(d["files"].IsArray());
-        const rapidjson::Value& files = d["files"];
-        for (rapidjson::SizeType i = 0; i < files.Size(); ++i) {
-            guarantee(files[i]["filename"].IsString());
+        if (d.HasMember("files") && d["files"].IsArray()) {
+            const rapidjson::Value& files = d["files"];
+            for (rapidjson::SizeType i = 0; i < files.Size(); ++i) {
+                guarantee(files[i]["filename"].IsString());
 
-            counted_t<file_output_target_t> new_file = make_counted<file_output_target_t>(
-                files[i]["filename"].GetString());
+                counted_t<file_output_target_t> new_file = make_counted<file_output_target_t>(
+                    files[i]["filename"].GetString());
 
-            int min_severity;
-            if (files[i]["min_severity"].IsInt()) {
-                min_severity = files[i]["min_severity"].GetInt();
-            } else {
-                min_severity = 0;
-            }
-            priority_routing.insert(
-                std::pair<int, counted_t<audit_log_output_target_t> >(
-                    min_severity,
-                    new_file));
+                int min_severity;
+                if (files[i]["min_severity"].IsInt()) {
+                    min_severity = files[i]["min_severity"].GetInt();
+                } else {
+                    min_severity = 0;
+                }
+                priority_routing.insert(
+                    std::pair<int, counted_t<audit_log_output_target_t> >(
+                        min_severity,
+                        new_file));
 
-            // Setup type routing.
-            if (files[i].HasMember("tags")) {
-                const rapidjson::Value& tags = files[i]["tags"];
-                if (tags.IsArray()) {
-                    // Why would rapidjson use Begin rather than begin, cmon.
-                    for (auto it = tags.Begin(); it != tags.End(); ++it) {
-                        auto tag = string_to_type.find(it->GetString());
-                        if (tag == string_to_type.end()) {
-                            //TODO handle these errors better
-                            logWRN("Auditing config Error: unknown tag %s\n",
-                                    it->GetString());
-                        } else {
-                            new_file->tags.insert(tag->second);
+                // Setup type routing.
+                if (files[i].HasMember("tags")) {
+                    const rapidjson::Value& tags = files[i]["tags"];
+                    if (tags.IsArray()) {
+                        // Why would rapidjson use Begin rather than begin, cmon.
+                        for (auto it = tags.Begin(); it != tags.End(); ++it) {
+                            auto tag = string_to_type.find(it->GetString());
+                            if (tag == string_to_type.end()) {
+                                //TODO handle these errors better
+                                logWRN("Auditing configuration error: unknown tag %s\n",
+                                       it->GetString());
+                            } else {
+                                new_file->tags.insert(tag->second);
+                            }
                         }
                     }
                 }
+                new_file->install();
+                file_targets.push_back(std::move(new_file));
             }
-            new_file->install();
-            file_targets.push_back(std::move(new_file));
+        } else {
+            logWRN("File output is not configured for auditing.");
         }
     }
 
-    if (d["syslog"].IsObject()) {
+    if (d.HasMember("syslog") && d["syslog"].IsObject()) {
         int min_severity;
         if (d["syslog"]["min_severity"].IsInt()) {
             min_severity = d["syslog"]["min_severity"].GetInt();
@@ -95,15 +121,14 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
                 counted_t<audit_log_output_target_t>(syslog_target)));
 
         file_targets.push_back(std::move(syslog_target));
+    } else {
+        logWRN("Syslog output is not configured for auditing.");
     }
 
     fclose(fp);
-    pmap(
-        get_num_threads(),
-        boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
 }
 thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
-    fprintf(stderr, "DESTRUCTOR CALLED");
+    fprintf(stderr, "DESTRUCTOR CALLED\n");
     pmap(
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::uninstall_on_thread, this, _1));
@@ -132,9 +157,10 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
     const audit_log_message_t &msg) {
     // TODO: actual formatting depending on settings
     std::string msg_string;
-    std::string prepend = strprintf("%s %s: ",
+    std::string prepend = strprintf("%s UTC %s [%s]: ",
                                     format_time(msg.timestamp, local_or_utc_time_t::utc).c_str(),
-                                    format_log_level(msg.level).c_str());
+                                    format_log_level(msg.level).c_str(),
+                                    type_to_string[msg.type].c_str());
     msg_string = strprintf("%s%s",
                            prepend.c_str(),
                            msg.message.c_str());
@@ -153,10 +179,7 @@ void thread_pool_audit_log_writer_t::write(const audit_log_message_t &msg) {
         // TODO: make sure this logic works
         guarantee(it != priority_routing.end());
 
-        if (static_cast<int>(msg.type) == 3) {
-            fprintf(stderr, "3");
-        }
-
+        // TODO: negative tags or something, this system is kinda cumbersome
         if (it->second->tags.empty() ||
             it->second->tags.find(msg.type) != it->second->tags.end()) {
             fprintf(stderr, "Writing a log message with tag %d\n", msg.type);
@@ -202,12 +225,15 @@ void vaudit_log_internal(log_type_t type, log_level_t level, const char *format,
     }
 }
 
-void audit_log_internal(log_type_t type, log_level_t level, const char *format, ...) {
-    fprintf(stderr, "Is this doesn't print, I guess fprintf is delayed\n");
-    va_list args;
-    va_start(args, format);
-    vaudit_log_internal(type, level, format, args);
-    va_end(args);
+void audit_log_internal
+(log_type_t type, log_level_t level, const char *format, ...) {
+    if (TLS_get_global_audit_log_writer()->enable_auditing()) {
+        fprintf(stderr, "Is this doesn't print, I guess fprintf is delayed\n");
+        va_list args;
+        va_start(args, format);
+        vaudit_log_internal(type, level, format, args);
+        va_end(args);
+    }
 }
 
 

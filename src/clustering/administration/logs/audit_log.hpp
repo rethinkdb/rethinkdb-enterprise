@@ -139,6 +139,7 @@ public:
     static std::string format_audit_log_message(const audit_log_message_t &msg);
     void write(const audit_log_message_t &msg);
 
+    bool enable_auditing() { return _enable_auditing; }
 private:
     void install_on_thread(int i);
     void uninstall_on_thread(int i);
@@ -147,6 +148,8 @@ private:
 
     std::vector<counted_t<audit_log_output_target_t> > file_targets;
     std::multimap<int, counted_t<audit_log_output_target_t> > priority_routing;
+
+    bool _enable_auditing;
 
     new_mutex_t write_mutex;
     auto_drainer_t drainer;

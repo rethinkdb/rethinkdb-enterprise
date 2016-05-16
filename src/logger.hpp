@@ -17,8 +17,12 @@ enum log_level_t { log_level_debug = 0,
                    log_level_emergency};
 
 // These should all be in the string_to_type map in audit_log.hpp
-enum class log_type_t { log, data, blah, blarg};
-
+enum class log_type_t { connection,
+                        log,
+                        query,
+                        data,
+                        blah,
+                        blarg };
 
 /* These functions are implemented in `clustering/administration/logs/log_writer.cc`.
 This header file exists so that anything can call them without having to include the same
