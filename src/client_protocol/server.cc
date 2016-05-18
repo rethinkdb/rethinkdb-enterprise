@@ -54,7 +54,8 @@ http_conn_cache_t::http_conn_t::http_conn_t(rdb_context_t *rdb_ctx,
             rdb_ctx,
             client_addr_port,
             ql::return_empty_normal_batches_t::YES,
-            auth::user_context_t(auth::username_t("admin")))),
+            auth::user_context_t(auth::username_t("admin")),
+            generate_uuid())),
     counter(&rdb_ctx->stats.client_connections) { }
 
 ql::query_cache_t *http_conn_cache_t::http_conn_t::get_query_cache() {
@@ -450,14 +451,13 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
             (version < 4)
                 ? ql::return_empty_normal_batches_t::YES
                 : ql::return_empty_normal_batches_t::NO,
-            auth::user_context_t(authenticator->get_authenticated_username()));
+            auth::user_context_t(authenticator->get_authenticated_username()),
+            conn->get_uuid());
 
-        auditINF(log_type_t::log,
-                 "%s connected from %s\n",
+        auditINF(log_type_t::connection,
+                 "%s connected from %s, connection id: %s\n",
                  authenticator->get_authenticated_username().to_string().c_str(),
-                 peer.to_string().c_str());
-        auditINF(log_type_t::log,
-                 "Connection id: %s\n",
+                 peer.to_string().c_str(),
                  uuid_to_str(conn->get_uuid()).c_str());
 
         connection_loop<json_protocol_t>(
@@ -480,7 +480,7 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         error_code = error.get_error_code();
         error_message = error.what();
 
-        // TODO add logging if authentication failed
+        // TODO add logging if authentication FAILED TODO TODO
     } catch (crypto::error_t const &error) {
         error_code = 21;
         error_message = error.what();

@@ -162,6 +162,7 @@ linux_tcp_conn_t::linux_tcp_conn_t(fd_t s) :
         write_queue_limiter(WRITE_QUEUE_MAX_SIZE),
         write_coro_pool(1, &write_queue, &write_handler),
         current_write_buffer(get_write_buffer()),
+        uuid(generate_uuid()),
         drainer(new auto_drainer_t) {
     rassert(sock.get() != INVALID_FD);
 

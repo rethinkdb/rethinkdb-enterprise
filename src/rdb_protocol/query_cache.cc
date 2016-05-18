@@ -14,13 +14,15 @@ query_cache_t::query_cache_t(
             rdb_context_t *_rdb_ctx,
             ip_and_port_t _client_addr_port,
             return_empty_normal_batches_t _return_empty_normal_batches,
-            auth::user_context_t _user_context) :
+            auth::user_context_t _user_context,
+            uuid_u _connection_id) :
         rdb_ctx(_rdb_ctx),
         client_addr_port(_client_addr_port),
         return_empty_normal_batches(_return_empty_normal_batches),
         user_context(std::move(_user_context)),
         next_query_id(0),
-        oldest_outstanding_query_id(0) {
+        oldest_outstanding_query_id(0),
+        connection_id(_connection_id) {
     auto res = rdb_ctx->get_query_caches_for_this_thread()->insert(this);
     guarantee(res.second);
 }
@@ -83,8 +85,9 @@ scoped_ptr_t<query_cache_t::ref_t> query_cache_t::create(query_params_t *query_p
     // TODO: thread uuids through so we can match things up
 
     auditINF(log_type_t::query,
-             "%s - %s - %s\n",
+             "user: %s - connection: %s - %s - %s\n",
              get_user_context().to_string().c_str(),
+             uuid_to_str(connection_id).c_str(),
              uuid_to_str(entry->job_id).c_str(),
              pprint::pretty_print(std::numeric_limits<size_t>::max(),
                                   pprint::render_as_javascript(
