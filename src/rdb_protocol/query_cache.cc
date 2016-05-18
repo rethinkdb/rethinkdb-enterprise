@@ -1,6 +1,8 @@
 // Copyright 2010-2015 RethinkDB, all rights reserved.
 #include "rdb_protocol/query_cache.hpp"
 
+#include "logger.hpp"
+#include "pprint/js_pprint.hpp"
 #include "rdb_protocol/env.hpp"
 #include "rdb_protocol/pseudo_time.hpp"
 #include "rdb_protocol/response.hpp"
@@ -48,6 +50,7 @@ scoped_ptr_t<query_cache_t::ref_t> query_cache_t::create(query_params_t *query_p
 
     global_optargs_t global_optargs;
     counted_t<const term_t> term_tree;
+
     try {
         query_params->term_storage->preprocess();
         global_optargs = query_params->term_storage->global_optargs();
@@ -75,9 +78,23 @@ scoped_ptr_t<query_cache_t::ref_t> query_cache_t::create(query_params_t *query_p
                                       std::move(query_params->throttler),
                                       entry.get(),
                                       interruptor));
+
+    // Log query and user, and query id for cross referencing to modified data.
+    // TODO: thread uuids through so we can match things up
+
+    auditINF(log_type_t::query,
+             "%s - %s - %s\n",
+             get_user_context().to_string().c_str(),
+             uuid_to_str(entry->job_id).c_str(),
+             pprint::pretty_print(std::numeric_limits<size_t>::max(),
+                                  pprint::render_as_javascript(
+                                      entry->term_tree->get_src())).c_str());
+
     auto insert_res = queries.insert(std::make_pair(query_params->token,
                                                     std::move(entry)));
     guarantee(insert_res.second);
+
+
     return ref;
 }
 

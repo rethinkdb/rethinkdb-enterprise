@@ -452,6 +452,14 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
                 : ql::return_empty_normal_batches_t::NO,
             auth::user_context_t(authenticator->get_authenticated_username()));
 
+        auditINF(log_type_t::log,
+                 "%s connected from %s\n",
+                 authenticator->get_authenticated_username().to_string().c_str(),
+                 peer.to_string().c_str());
+        auditINF(log_type_t::log,
+                 "Connection id: %s\n",
+                 uuid_to_str(conn->get_uuid()).c_str());
+
         connection_loop<json_protocol_t>(
             conn.get(),
             (version < 4)
@@ -471,6 +479,8 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         // Note these have error codes 10 to 20
         error_code = error.get_error_code();
         error_message = error.what();
+
+        // TODO add logging if authentication failed
     } catch (crypto::error_t const &error) {
         error_code = 21;
         error_message = error.what();
@@ -484,7 +494,6 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
     }
 
     if (!error_message.empty()) {
-        // TODO: add auditing for failed connections as well
         try {
             if (version < 10) {
                 std::string error = "ERROR: " + error_message + "\n";
@@ -508,12 +517,6 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         } catch (const tcp_conn_write_closed_exc_t &) {
             // Writing the error message failed, there is nothing we can do at this point
         }
-    } else {
-        std::string log_message = strprintf(
-            "%s connected from %s\n",
-            authenticator->get_authenticated_username().to_string().c_str(),
-            peer.to_string().c_str());
-        auditINF(log_type_t::log, log_message.c_str());
     }
 }
 

@@ -37,6 +37,7 @@
 #include "concurrency/semaphore.hpp"
 #include "concurrency/coro_pool.hpp"
 #include "containers/intrusive_list.hpp"
+#include "containers/uuid.hpp"
 #include "crypto/error.hpp"
 #include "perfmon/types.hpp"
 
@@ -168,6 +169,9 @@ public:
         return event_watcher.get();
     }
 
+    uuid_u get_uuid() {
+        return uuid;
+    }
 protected:
 
     void on_shutdown_read();
@@ -181,6 +185,8 @@ protected:
 
     /* These are pulsed if and only if the read/write end of the connection has been closed. */
     cond_t read_closed, write_closed;
+
+    uuid_u uuid;
 
 private:
 

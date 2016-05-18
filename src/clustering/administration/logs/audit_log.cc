@@ -292,6 +292,8 @@ void syslog_output_target_t::write_internal(counted_t<audit_log_message_t> msg, 
     }
     syslog(priority_level, "%s",
            thread_pool_audit_log_writer_t::format_audit_log_message(msg).c_str());
+    fprintf(stderr, "%s",
+            thread_pool_audit_log_writer_t::format_audit_log_message(msg).c_str());
     *ok_out = true;
 }
 

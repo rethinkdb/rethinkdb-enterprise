@@ -101,6 +101,7 @@ linux_tcp_conn_t::linux_tcp_conn_t(const ip_address_t &peer,
                                    int local_port) THROWS_ONLY(connect_failed_exc_t, interrupted_exc_t) :
         write_perfmon(nullptr),
         sock(create_socket_wrapper(peer.get_address_family())),
+        uuid(generate_uuid()),
         event_watcher(new linux_event_watcher_t(sock.get(), this)),
         read_in_progress(false), write_in_progress(false),
         read_buffer(IO_BUFFER_SIZE),
