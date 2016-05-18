@@ -213,6 +213,7 @@ kv_location_set(keyvalue_location_t *kv_location,
 }
 
 batched_replace_response_t rdb_replace_and_return_superblock(
+    const rdb_context_t &ctx,
     const btree_loc_info_t &info,
     const btree_point_replacer_t *replacer,
     const deletion_context_t *deletion_context,
@@ -264,6 +265,14 @@ batched_replace_response_t rdb_replace_and_return_superblock(
             if (!was_changed) {
                 return resp;
             }
+
+            // Log modified data for auditing
+            // TODO: also need job id, do we have that here?
+            auditINF(log_type_t::data,
+                     "%s - %s ==> %s",
+                     ctx->
+                     old_val.print().c_str(),
+                     new_val.print().c_str());
 
             /* Now that the change has passed validation, write it to disk */
             if (new_val.get_type() == ql::datum_t::R_NULL) {
@@ -336,6 +345,7 @@ private:
 };
 
 void do_a_replace_from_batched_replace(
+    const rdb_context_t &ctx,
     auto_drainer_t::lock_t,
     fifo_enforcer_sink_t *batched_replaces_fifo_sink,
     const fifo_enforcer_write_token_t &batched_replaces_fifo_token,
@@ -359,6 +369,7 @@ void do_a_replace_from_batched_replace(
     rdb_live_deletion_context_t deletion_context;
     rdb_modification_report_t mod_report(*info.key);
     ql::datum_t res = rdb_replace_and_return_superblock(
+        ctx,
         info, &one_replace, &deletion_context, superblock_promise, &mod_report.info,
         trace);
     *stats_out = (*stats_out).merge(res, ql::stats_merge, limits, conditions);
@@ -373,6 +384,7 @@ void do_a_replace_from_batched_replace(
 }
 
 batched_replace_response_t rdb_batched_replace(
+    const rdb_context_t &ctx,
     const btree_info_t &info,
     scoped_ptr_t<real_superblock_t> *superblock,
     const std::vector<store_key_t> &keys,
@@ -422,6 +434,7 @@ batched_replace_response_t rdb_batched_replace(
                 coro_queue.push(
                     std::bind(
                         &do_a_replace_from_batched_replace,
+                        ctx,
                         auto_drainer_t::lock_t(&drainer),
                         &sink,
                         source.enter_write(),

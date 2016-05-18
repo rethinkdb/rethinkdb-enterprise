@@ -779,6 +779,7 @@ struct rdb_write_visitor_t : public boost::static_visitor<void> {
 
         response->response =
             rdb_batched_replace(
+                ql_env.get_rdb_context(),
                 btree_info_t(btree, timestamp, datum_string_t(br.pkey)),
                 superblock,
                 br.keys,
