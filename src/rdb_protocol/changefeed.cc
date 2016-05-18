@@ -865,6 +865,7 @@ limit_manager_t::limit_manager_t(
 
     // The final `NULL` argument means we don't profile any work done with this `env`.
     env = make_scoped<env_t>(
+        generate_uuid(),
         ctx,
         return_empty_normal_batches_t::NO,
         drainer.get_drain_signal(),
@@ -2343,6 +2344,7 @@ private:
                                  outer_env->return_empty_normal_batches,
                                  outer_env->reql_version())
             : make_scoped<env_t>(
+                outer_env->job_id,
                 outer_env->get_rdb_ctx(),
                 outer_env->return_empty_normal_batches,
                 drainer.get_drain_signal(),

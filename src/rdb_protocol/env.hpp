@@ -47,7 +47,8 @@ class env_t : public home_thread_mixin_t {
 public:
     // This is _not_ to be used for secondary index function evaluation -- it doesn't
     // take a reql_version parameter.
-    env_t(rdb_context_t *ctx,
+    env_t(uuid_u job_id,
+          rdb_context_t *ctx,
           return_empty_normal_batches_t return_empty_normal_batches,
           signal_t *interruptor,
           global_optargs_t optargs,
@@ -118,6 +119,8 @@ public:
     regex_cache_t &regex_cache() { return regex_cache_; }
 
     reql_version_t reql_version() const { return reql_version_; }
+
+    uuid_u job_id;
 
 private:
     // The global optargs values passed to .run(...) in the Python, Ruby, and JS

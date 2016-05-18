@@ -215,6 +215,7 @@ void query_cache_t::ref_t::fill_response(response_t *res) {
 
     try {
         env_t env(
+            entry->job_id,
             query_cache->rdb_ctx,
             query_cache->return_empty_normal_batches,
             &combined_interruptor,

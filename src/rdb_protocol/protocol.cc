@@ -869,6 +869,7 @@ void rdb_r_unshard_visitor_t::unshard_range_batch(const query_t &q, sorting_t so
     }
     scoped_ptr_t<profile::trace_t> trace = ql::maybe_make_profile_trace(profile);
     ql::env_t env(
+        generate_uuid(),
         ctx,
         ql::return_empty_normal_batches_t::NO,
         interruptor,
@@ -1282,7 +1283,7 @@ bool write_t::shard(const region_t &region,
     write_t::variant_t payload;
     const rdb_w_shard_visitor_t v(&region, &payload);
     bool result = boost::apply_visitor(v, write);
-    *write_out = write_t(payload, durability_requirement, profile, limits);
+    *write_out = write_t(payload, durability_requirement, profile, limits, job_id);
     return result;
 }
 
@@ -1547,7 +1548,7 @@ RDB_IMPL_SERIALIZABLE_1_SINCE_v1_13(point_delete_t, key);
 RDB_IMPL_SERIALIZABLE_1_SINCE_v1_13(sync_t, region);
 RDB_IMPL_SERIALIZABLE_1_FOR_CLUSTER(dummy_write_t, region);
 
-RDB_IMPL_SERIALIZABLE_4_FOR_CLUSTER(
-    write_t, write, durability_requirement, profile, limits);
+RDB_IMPL_SERIALIZABLE_5_FOR_CLUSTER(
+    write_t, write, durability_requirement, profile, limits, job_id);
 
 

@@ -66,15 +66,17 @@ scoped_ptr_t<profile::trace_t> maybe_make_profile_trace(profile_bool_t profile) 
         : scoped_ptr_t<profile::trace_t>();
 }
 
-env_t::env_t(rdb_context_t *ctx,
+env_t::env_t(uuid_u _job_id,
+             rdb_context_t *ctx,
              return_empty_normal_batches_t _return_empty_normal_batches,
              signal_t *_interruptor,
              global_optargs_t optargs,
              auth::user_context_t user_context,
              profile::trace_t *_trace)
-    : global_optargs_(std::move(optargs)),
+    : job_id(_job_id),
+      global_optargs_(std::move(optargs)),
       m_user_context(std::move(user_context)),
-      limits_(from_optargs(ctx, _interruptor, &global_optargs_)),
+      limits_(from_optargs(_job_id, ctx, _interruptor, &global_optargs_)),
       reql_version_(reql_version_t::LATEST),
       regex_cache_(LRU_CACHE_SIZE),
       return_empty_normal_batches(_return_empty_normal_batches),

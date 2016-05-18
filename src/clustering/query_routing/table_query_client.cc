@@ -74,7 +74,7 @@ bool table_query_client_t::check_readiness(table_readiness_t readiness,
             {
                 write_response_t res;
                 write_t w(dummy_write_t(), profile_bool_t::DONT_PROFILE,
-                          ql::configured_limits_t::unlimited);
+                          ql::configured_limits_t::unlimited, generate_uuid());
                 write(
                     auth::user_context_t(auth::permissions_t(true, true, false, false)),
                     w,

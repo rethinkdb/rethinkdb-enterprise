@@ -34,7 +34,7 @@ private:
     RDB_DECLARE_ME_SERIALIZABLE(configured_limits_t);
 };
 
-configured_limits_t from_optargs(rdb_context_t *ctx, signal_t *interruptor,
+configured_limits_t from_optargs(uuid_u job_id, rdb_context_t *ctx, signal_t *interruptor,
                                  global_optargs_t *optargs);
 size_t check_limit(const char *name, int64_t limit);
 

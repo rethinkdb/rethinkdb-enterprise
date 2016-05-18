@@ -670,6 +670,8 @@ struct write_t {
     profile_bool_t profile;
     ql::configured_limits_t limits;
 
+    uuid_u job_id;
+
     region_t get_region() const THROWS_NOTHING;
     // Returns true if the write had any side effects applicable to the
     // region, and a non-empty write was written to write_out.
@@ -692,7 +694,8 @@ struct write_t {
             sync,
             DURABILITY_REQUIREMENT_HARD,
             profile,
-            ql::configured_limits_t());
+            ql::configured_limits_t(),
+            generate_uuid());
     }
 
     write_t() :
@@ -709,17 +712,21 @@ struct write_t {
     write_t(T &&t,
             durability_requirement_t _durability,
             profile_bool_t _profile,
-            const ql::configured_limits_t &_limits)
+            const ql::configured_limits_t &_limits,
+            uuid_u _job_id)
         : write(std::forward<T>(t)),
           durability_requirement(_durability), profile(_profile),
-          limits(_limits) { }
+          limits(_limits),
+          job_id(_job_id) { }
     template<class T>
     write_t(T &&t, profile_bool_t _profile,
-            const ql::configured_limits_t &_limits)
+            const ql::configured_limits_t &_limits,
+            uuid_u _job_id)
         : write(std::forward<T>(t)),
           durability_requirement(DURABILITY_REQUIREMENT_DEFAULT),
           profile(_profile),
-          limits(_limits) { }
+          limits(_limits),
+          job_id(_job_id) { }
 };
 RDB_DECLARE_SERIALIZABLE_FOR_CLUSTER(write_t);
 

@@ -292,7 +292,11 @@ ql::datum_t real_table_t::write_batched_replace(
                 env->get_all_optargs(),
                 env->get_user_context(),
                 return_changes);
-            write_t w(std::move(write), durability, env->profile(), env->limits());
+            write_t w(std::move(write),
+                      durability,
+                      env->profile(),
+                      env->limits(),
+                      env->job_id);
             write_response_t response;
             write_with_profile(env, &w, &response);
             auto dp = boost::get<ql::datum_t>(&response.response);
@@ -338,7 +342,7 @@ ql::datum_t real_table_t::write_batched_insert(
             env->limits(),
             env->get_user_context(),
             return_changes);
-        write_t w(std::move(write), durability, env->profile(), env->limits());
+        write_t w(std::move(write), durability, env->profile(), env->limits(), env->job_id);
         write_response_t response;
         write_with_profile(env, &w, &response);
         auto dp = boost::get<ql::datum_t>(&response.response);
@@ -353,7 +357,7 @@ ql::datum_t real_table_t::write_batched_insert(
 
 bool real_table_t::write_sync_depending_on_durability(ql::env_t *env,
         durability_requirement_t durability) {
-    write_t write(sync_t(), durability, env->profile(), env->limits());
+    write_t write(sync_t(), durability, env->profile(), env->limits(), env->job_id);
     write_response_t res;
     write_with_profile(env, &write, &res);
     sync_response_t *response = boost::get<sync_response_t>(&res.response);

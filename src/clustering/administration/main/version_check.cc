@@ -40,6 +40,7 @@ version_checker_t::version_checker_t(
 
 void version_checker_t::do_check(bool is_initial, auto_drainer_t::lock_t keepalive) {
     ql::env_t env(
+        generate_uuid(),
         rdb_ctx,
         ql::return_empty_normal_batches_t::NO,
         keepalive.get_drain_signal(),

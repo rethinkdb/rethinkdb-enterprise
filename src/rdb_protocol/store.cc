@@ -291,6 +291,7 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
 
     void operator()(const changefeed_limit_subscribe_t &s) {
         ql::env_t env(
+            job_id,
             ctx,
             ql::return_empty_normal_batches_t::NO,
             interruptor,
@@ -443,6 +444,7 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
 
     void operator()(const intersecting_geo_read_t &geo_read) {
         ql::env_t ql_env(
+            job_id,
             ctx,
             ql::return_empty_normal_batches_t::NO,
             interruptor,
@@ -524,6 +526,7 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
 
     void operator()(const nearest_geo_read_t &geo_read) {
         ql::env_t ql_env(
+            job_id,
             ctx,
             ql::return_empty_normal_batches_t::NO,
             interruptor,
@@ -622,6 +625,7 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
             rassert(rget.optargs.has_optarg("db"));
         }
         ql::env_t ql_env(
+            job_id,
             ctx,
             ql::return_empty_normal_batches_t::NO,
             interruptor,
@@ -659,13 +663,15 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
         response->response = dummy_read_response_t();
     }
 
-    rdb_read_visitor_t(btree_slice_t *_btree,
+    rdb_read_visitor_t(uuid_u _job_id,
+                       btree_slice_t *_btree,
                        store_t *_store,
                        real_superblock_t *_superblock,
                        rdb_context_t *_ctx,
                        read_response_t *_response,
                        profile::trace_t *_trace,
                        signal_t *_interruptor) :
+        job_id(_job_id),
         response(_response),
         ctx(_ctx),
         interruptor(_interruptor),
@@ -676,6 +682,7 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
 
 private:
 
+    uuid_u job_id;
     read_response_t *const response;
     rdb_context_t *const ctx;
     signal_t *const interruptor;
@@ -696,7 +703,8 @@ void store_t::protocol_read(const read_t &_read,
     {
         PROFILE_STARTER_IF_ENABLED(
             _read.profile == profile_bool_t::PROFILE, "Perform read on shard.", trace);
-        rdb_read_visitor_t v(btree.get(), this,
+        rdb_read_visitor_t v(generate_uuid(),
+                             btree.get(), this,
                              superblock,
                              ctx, response, trace.get_or_null(), interruptor);
         boost::apply_visitor(v, _read.read);
@@ -766,6 +774,7 @@ boost::optional<counted_t<const ql::func_t> > conflict_func;
 struct rdb_write_visitor_t : public boost::static_visitor<void> {
     void operator()(const batched_replace_t &br) {
         ql::env_t ql_env(
+            job_id,
             ctx,
             ql::return_empty_normal_batches_t::NO,
             interruptor,
@@ -779,7 +788,7 @@ struct rdb_write_visitor_t : public boost::static_visitor<void> {
 
         response->response =
             rdb_batched_replace(
-                ql_env.get_rdb_context(),
+                job_id,
                 btree_info_t(btree, timestamp, datum_string_t(br.pkey)),
                 superblock,
                 br.keys,
@@ -795,6 +804,7 @@ struct rdb_write_visitor_t : public boost::static_visitor<void> {
             store, &sindex_block,
             auto_drainer_t::lock_t(&store->drainer));
         ql::env_t ql_env(
+            job_id,
             ctx,
             ql::return_empty_normal_batches_t::NO,
             interruptor,
@@ -803,6 +813,7 @@ struct rdb_write_visitor_t : public boost::static_visitor<void> {
             trace);
         datum_replacer_t replacer(&ql_env,
                                   bi);
+
         std::vector<store_key_t> keys;
         keys.reserve(bi.inserts.size());
         for (auto it = bi.inserts.begin(); it != bi.inserts.end(); ++it) {
@@ -810,6 +821,7 @@ struct rdb_write_visitor_t : public boost::static_visitor<void> {
         }
         response->response =
             rdb_batched_replace(
+                job_id,
                 btree_info_t(btree, timestamp, datum_string_t(bi.pkey)),
                 superblock,
                 keys,
@@ -867,7 +879,8 @@ struct rdb_write_visitor_t : public boost::static_visitor<void> {
         response->response = dummy_write_response_t();
     }
 
-    rdb_write_visitor_t(btree_slice_t *_btree,
+    rdb_write_visitor_t(uuid_u _job_id,
+                        btree_slice_t *_btree,
                         store_t *_store,
                         txn_t *_txn,
                         scoped_ptr_t<real_superblock_t> *_superblock,
@@ -877,6 +890,7 @@ struct rdb_write_visitor_t : public boost::static_visitor<void> {
                         profile::trace_t *_trace,
                         write_response_t *_response,
                         signal_t *_interruptor) :
+        job_id(_job_id),
         btree(_btree),
         store(_store),
         txn(_txn),
@@ -902,6 +916,7 @@ private:
                                true /* release_sindex_block */);
     }
 
+    uuid_u job_id;
     btree_slice_t *const btree;
     store_t *const store;
     txn_t *const txn;
@@ -927,7 +942,8 @@ void store_t::protocol_write(const write_t &_write,
 
     {
         profile::sampler_t start_write("Perform write on shard.", trace);
-        rdb_write_visitor_t v(btree.get(),
+        rdb_write_visitor_t v(_write.job_id,
+                              btree.get(),
                               this,
                               (*superblock)->expose_buf().txn(),
                               superblock,
