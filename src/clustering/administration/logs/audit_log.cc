@@ -59,8 +59,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
     } else if (d.HasMember("enable_auditing") && d["enable_auditing"].GetBool() == false) {
         _enable_auditing = false;
     } else {
-        // TODO, add a default for everything rapidjson reads,
-        // and check things exist before reading them
         // TODO don't require files
         // Parse output file configuration from config file.
         if (d.HasMember("files") && d["files"].IsArray()) {
@@ -128,7 +126,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
     if (_enable_auditing) {
         logNTC("Audit logging enabled.\n");
     } else {
-        logNTC("Audit logging disabled\n");
+        logWRN("Audit logging disabled\n");
     }
     fclose(fp);
 }
@@ -209,7 +207,12 @@ void vaudit_log_internal(log_type_t type, log_level_t level, const char *format,
     int writer_block = TLS_get_audit_log_writer_block();
     if (writer != nullptr && writer_block == 0) {
         auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
         std::string message = vstrprintf(format, args);
+#pragma GCC diagnostic pop
+
         coro_t::spawn_sometime(
             boost::bind(
                 &audit_log_coro,
@@ -237,9 +240,6 @@ void audit_log_internal
 
 void file_output_target_t::write_internal(counted_t<audit_log_message_t> msg, std::string *error_out, bool *ok_out) {
     new_mutex_acq_t write_acq(&write_mutex);
-    FILE* write_stream = nullptr;
-    int fileno = -1;
-    int priority_level = 0;
 
     if (fd.get() == INVALID_FD) {
         error_out->assign("cannot open or find log file");

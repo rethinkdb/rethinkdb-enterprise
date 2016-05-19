@@ -719,6 +719,13 @@ struct write_t {
           limits(_limits),
           job_id(_job_id) { }
     template<class T>
+    write_t(T &&t,
+            durability_requirement_t _durability,
+            profile_bool_t _profile,
+            const ql::configured_limits_t &_limits)
+        : write_t(t, _durability, _profile, _limits, generate_uuid()) { }
+
+    template<class T>
     write_t(T &&t, profile_bool_t _profile,
             const ql::configured_limits_t &_limits,
             uuid_u _job_id)
@@ -727,6 +734,10 @@ struct write_t {
           profile(_profile),
           limits(_limits),
           job_id(_job_id) { }
+    template<class T>
+    write_t(T &&t, profile_bool_t _profile,
+            const ql::configured_limits_t &_limits)
+        : write_t(t, _profile, _limits, generate_uuid()) { }
 };
 RDB_DECLARE_SERIALIZABLE_FOR_CLUSTER(write_t);
 
