@@ -39,16 +39,20 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
 
-    config_filename.make_absolute();
-
     // TODO: I can probably do this with nice shiny C++ streams.
     char readBuffer[65536];
     FILE *fp = fopen(config_filename.path().c_str(), "r");
-    rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
 
     rapidjson::Document d;
 
-    if (d.ParseStream(is).HasParseError()) {
+    if (fp != nullptr) {
+        rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
+        d.ParseStream(is);
+    } else {
+        _enable_auditing = false;
+    }
+
+    if (d.HasParseError()) {
         logERR("\nAudit Config file Error(offset %u): %s\n",
                 (unsigned)d.GetErrorOffset(),
                 GetParseError_En(d.GetParseError()));
@@ -56,9 +60,10 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
 
         // Disable auditing and exit
         _enable_auditing = false;
-    } else if (d.HasMember("enable_auditing") && d["enable_auditing"].GetBool() == false) {
+    } else if (_enable_auditing &&
+               d.HasMember("enable_auditing") && d["enable_auditing"].GetBool() == false) {
         _enable_auditing = false;
-    } else {
+    } else if (_enable_auditing) {
         // TODO don't require files
         // Parse output file configuration from config file.
         if (d.HasMember("files") && d["files"].IsArray()) {
@@ -128,7 +133,10 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
     } else {
         logWRN("Audit logging disabled\n");
     }
-    fclose(fp);
+
+    if (fp != nullptr) {
+        fclose(fp);
+    }
 }
 thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
     pmap(
@@ -222,6 +230,7 @@ void vaudit_log_internal(log_type_t type, log_level_t level, const char *format,
                 message,
                 lock));
     } else {
+        logERR("Failed to write audit log message.\n");
         // TODO: change this to something that actually solves the problem,
         // or at least fails properly.
     }
