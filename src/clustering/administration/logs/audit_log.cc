@@ -175,7 +175,6 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
 }
 
 void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
-    new_mutex_acq_t blah(&write_mutex);
     // Select targets by configured severity level
     for (auto it = priority_routing.begin();
          it != priority_routing.upper_bound(static_cast<int>(msg->level));
@@ -186,6 +185,7 @@ void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
         // TODO: negative tags or something, this system is kinda cumbersome
         if (it->second->tags.empty() ||
             it->second->tags.find(msg->type) != it->second->tags.end()) {
+            new_mutex_acq_t blah(&write_mutex);
             it->second->emplace_message(msg);
         }
     }
@@ -310,8 +310,8 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
     }
 
     if (!writing) {
-        new_mutex_acq_t write_flag_acq(&write_flag_mutex);
         writing = true;
+        new_mutex_acq_t write_flag_acq(&write_flag_mutex);
         thread_pool_t::run_in_blocker_pool(
             [&]() {
                 write();

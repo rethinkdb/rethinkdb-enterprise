@@ -82,10 +82,9 @@ scoped_ptr_t<query_cache_t::ref_t> query_cache_t::create(query_params_t *query_p
                                       interruptor));
 
     // Log query and user, and query id for cross referencing to modified data.
-    // TODO: thread uuids through so we can match things up
 
     auditINF(log_type_t::query,
-             "user: %s, connection id: %s, job id: %s, %s\n",
+             "user: %s, connection id: %s, job id: %s, `%s`\n",
              get_user_context().to_string().c_str(),
              uuid_to_str(connection_id).c_str(),
              uuid_to_str(entry->job_id).c_str(),
