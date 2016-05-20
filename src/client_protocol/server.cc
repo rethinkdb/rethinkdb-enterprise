@@ -280,6 +280,7 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
     std::unique_ptr<auth::base_authenticator_t> authenticator;
     uint32_t error_code = 0;
     std::string error_message;
+    bool disconnected = false;
     try {
         int32_t client_magic_number;
         conn->read_buffered(
@@ -479,8 +480,6 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         // Note these have error codes 10 to 20
         error_code = error.get_error_code();
         error_message = error.what();
-
-        // TODO add logging if authentication FAILED TODO TODO
     } catch (crypto::error_t const &error) {
         error_code = 21;
         error_message = error.what();
@@ -488,18 +487,30 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         error_code = 22;
         error_message = error.code().message();
     } catch (const tcp_conn_read_closed_exc_t &) {
+        disconnected = true;
     } catch (const tcp_conn_write_closed_exc_t &) {
+        disconnected = true;
     } catch (const std::exception &ex) {
         logERR("Unexpected exception in client handler: %s", ex.what());
+    }
+
+    if (disconnected) {
+        std::string username = authenticator->get_unauthenticated_username().to_string();
+        auditINF(log_type_t::connection,
+                 "%s disconnected from %s, connection id: %s\n",
+                 (username == "") ? "A user" : username.c_str(),
+                 peer.to_string().c_str(),
+                 uuid_to_str(conn->get_uuid()).c_str());
     }
 
     if (!error_message.empty()) {
         std::string username = authenticator->get_unauthenticated_username().to_string();
         auditINF(log_type_t::connection,
-                 "%s FAILED to connect from %s, connection id: %s\n",
+                 "%s FAILED to connect from %s, connection id: %s, %s\n",
                  (username == "") ? "A user" : username.c_str(),
                  peer.to_string().c_str(),
-                 uuid_to_str(conn->get_uuid()).c_str());
+                 uuid_to_str(conn->get_uuid()).c_str(),
+                 error_message.c_str());
         try {
             if (version < 10) {
                 std::string error = "ERROR: " + error_message + "\n";
