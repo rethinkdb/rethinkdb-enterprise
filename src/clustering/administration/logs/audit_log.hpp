@@ -56,7 +56,7 @@ public:
                                   read_head(0),
                                   parity(true),
                                   writing(false) {
-        pending_messages.reserve(512);
+        pending_messages.reserve(256);
     }
 
     virtual ~audit_log_output_target_t() { }

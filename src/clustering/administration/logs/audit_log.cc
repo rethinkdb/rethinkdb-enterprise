@@ -328,13 +328,13 @@ void audit_log_output_target_t::write() {
     while (!(parity == true && read_head == write_head)) {
         counted_t<audit_log_message_t> msg;
         {
-            msg = pending_messages[read_head];
+            msg = std::move(pending_messages[read_head]);
             if (++read_head >= pending_messages.size()) {
                 read_head = 0;
                 parity = !parity;
             }
         }
-        write_internal(msg,
+        write_internal(std::move(msg),
                        &error_message,
                        &ok);
         if (!ok) {
