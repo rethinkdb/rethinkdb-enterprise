@@ -51,7 +51,11 @@ RDB_DECLARE_SERIALIZABLE(audit_log_message_t);
 class audit_log_output_target_t : public slow_atomic_countable_t<audit_log_output_target_t> {
 public:
     friend class thread_pool_audit_log_writer_t;
-    audit_log_output_target_t() : write_head(0), read_head(0), parity(true), writing(false) {
+    audit_log_output_target_t() : min_severity(0),
+                                  write_head(0),
+                                  read_head(0),
+                                  parity(true),
+                                  writing(false) {
         pending_messages.reserve(512);
     }
 
@@ -63,7 +67,8 @@ public:
     void write();
     void emplace_message(counted_t<audit_log_message_t> msg);
 
-    std::set<log_type_t> tags;
+    std::vector<log_type_t> tags;
+    int min_severity;
 
     std::vector<counted_t<audit_log_message_t> > pending_messages;
     size_t write_head;
@@ -160,7 +165,7 @@ private:
     base_path_t config_filename;
 
     std::vector<counted_t<audit_log_output_target_t> > file_targets;
-    std::multimap<int, counted_t<audit_log_output_target_t> > priority_routing;
+    std::vector<counted_t<audit_log_output_target_t> > priority_routing;
 
     bool _enable_auditing;
 

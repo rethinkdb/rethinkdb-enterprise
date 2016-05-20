@@ -74,16 +74,11 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
                 counted_t<file_output_target_t> new_file = make_counted<file_output_target_t>(
                     files[i]["filename"].GetString());
 
-                int min_severity;
                 if (files[i]["min_severity"].IsInt()) {
-                    min_severity = files[i]["min_severity"].GetInt();
-                } else {
-                    min_severity = 0;
+                    new_file->min_severity = files[i]["min_severity"].GetInt();
                 }
-                priority_routing.insert(
-                    std::pair<int, counted_t<audit_log_output_target_t> >(
-                        min_severity,
-                        new_file));
+                priority_routing.push_back(
+                    counted_t<audit_log_output_target_t>(new_file));
 
                 // Setup type routing.
                 if (files[i].HasMember("tags")) {
@@ -97,7 +92,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
                                 logWRN("Auditing configuration error: unknown tag %s\n",
                                        it->GetString());
                             } else {
-                                new_file->tags.insert(tag->second);
+                                new_file->tags.push_back(tag->second);
                             }
                         }
                     }
@@ -108,18 +103,12 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
         }
     }
 
+    counted_t<syslog_output_target_t> syslog_target = make_counted<syslog_output_target_t>();
     if (_enable_auditing && d.HasMember("syslog") && d["syslog"].IsObject()) {
-        int min_severity;
         if (d["syslog"]["min_severity"].IsInt()) {
-            min_severity = d["syslog"]["min_severity"].GetInt();
-        } else {
-            min_severity = 0;
+            syslog_target->min_severity = d["syslog"]["min_severity"].GetInt();
         }
-        counted_t<syslog_output_target_t> syslog_target = make_counted<syslog_output_target_t>();
-        priority_routing.insert(
-            std::pair<int, counted_t<audit_log_output_target_t> >(
-                min_severity,
-                counted_t<audit_log_output_target_t>(syslog_target)));
+        priority_routing.push_back(counted_t<audit_log_output_target_t>(syslog_target));
 
         file_targets.push_back(std::move(syslog_target));
     }
@@ -163,12 +152,11 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
     counted_t<audit_log_message_t> msg) {
     // TODO: actual formatting depending on settings
     std::string msg_string;
-    std::string prepend = strprintf("%s UTC %s [%s]: ",
-                                    format_time(msg->timestamp, local_or_utc_time_t::utc).c_str(),
-                                    format_log_level(msg->level).c_str(),
-                                    type_to_string[msg->type].c_str());
-    msg_string = strprintf("%s%s",
-                           prepend.c_str(),
+
+    msg_string = strprintf("%s UTC %s [%s]: %s",
+                           format_time(msg->timestamp, local_or_utc_time_t::utc).c_str(),
+                           format_log_level(msg->level).c_str(),
+                           type_to_string[msg->type].c_str(),
                            msg->message.c_str());
 
     return msg_string;
@@ -176,17 +164,15 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
 
 void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
     // Select targets by configured severity level
-    for (auto it = priority_routing.begin();
-         it != priority_routing.upper_bound(static_cast<int>(msg->level));
-         ++it) {
-        // TODO: make sure this logic works
-        guarantee(it != priority_routing.end());
+    for (auto it : priority_routing) {
+        if (it->min_severity <= msg->level) {
 
-        // TODO: negative tags or something, this system is kinda cumbersome
-        if (it->second->tags.empty() ||
-            it->second->tags.find(msg->type) != it->second->tags.end()) {
-            new_mutex_acq_t blah(&write_mutex);
-            it->second->emplace_message(msg);
+            // TODO: negative tags or something, this system is kinda cumbersome
+            if (it->tags.empty() ||
+                std::find(it->tags.begin(), it->tags.end(), msg->type) != it->tags.end()) {
+                new_mutex_acq_t write_acq(&write_mutex);
+                it->emplace_message(msg);
+            }
         }
     }
 }
@@ -253,7 +239,7 @@ void file_output_target_t::write_internal(counted_t<audit_log_message_t> msg, st
     }
 
     std::string msg_str = thread_pool_audit_log_writer_t::format_audit_log_message(msg);
-    ssize_t write_res = ::write(fd.get(), msg_str.data(), msg_str.length());
+    ssize_t write_res = ::write(fd.get(), std::move(msg_str).data(), msg_str.length());
     if (write_res != static_cast<ssize_t>(msg_str.length())) {
         error_out->assign("Cannot write to log file: " + errno_string(get_errno()));
         *ok_out = false;
@@ -302,13 +288,12 @@ void syslog_output_target_t::write_internal(counted_t<audit_log_message_t> msg, 
 
 void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> msg) {
     {
-        // Get mutex to modify queue.
         new_mutex_acq_t write_acq(&queue_mutex);
-
-        // Backpressure
         while (write_head == read_head && parity == false) {
             ;;
         }
+        // Get mutex to modify queue.
+
         // Add new message to write queue
         pending_messages[write_head] = std::move(msg);
         if (++write_head >= pending_messages.size()) {
@@ -339,6 +324,7 @@ void audit_log_output_target_t::write() {
     std::string error_message;
     bool ok = true;
     // Do the actual writing
+    // Only one coroutine will be here at once, no locking.
     while (!(parity == true && read_head == write_head)) {
         counted_t<audit_log_message_t> msg;
         {
