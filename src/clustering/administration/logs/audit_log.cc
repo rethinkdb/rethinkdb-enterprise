@@ -305,13 +305,28 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
         // Get mutex to modify queue.
         new_mutex_acq_t write_acq(&queue_mutex);
 
+        // Backpressure
+        while (write_head == read_head && parity == false) {
+            ;;
+        }
         // Add new message to write queue
-        pending_messages.push_back(msg);
+        pending_messages[write_head] = std::move(msg);
+        if (++write_head >= pending_messages.size()) {
+            write_head = 0;
+            parity = !parity;
+        }
     }
 
-    if (!writing) {
-        writing = true;
+    bool do_write = false;
+    {
         new_mutex_acq_t write_flag_acq(&write_flag_mutex);
+        if (!writing) {
+            writing = true;
+            do_write = true;
+        }
+    }
+    if (do_write) {
+        writing = true;
         thread_pool_t::run_in_blocker_pool(
             [&]() {
                 write();
@@ -324,12 +339,14 @@ void audit_log_output_target_t::write() {
     std::string error_message;
     bool ok = true;
     // Do the actual writing
-    while (pending_messages.size() > 0) {
+    while (!(parity == true && read_head == write_head)) {
         counted_t<audit_log_message_t> msg;
         {
-            new_mutex_acq_t write_acq(&queue_mutex);
-            msg = pending_messages.front();
-            pending_messages.pop_front();
+            msg = pending_messages[read_head];
+            if (++read_head >= pending_messages.size()) {
+                read_head = 0;
+                parity = !parity;
+            }
         }
         write_internal(msg,
                        &error_message,

@@ -51,7 +51,9 @@ RDB_DECLARE_SERIALIZABLE(audit_log_message_t);
 class audit_log_output_target_t : public slow_atomic_countable_t<audit_log_output_target_t> {
 public:
     friend class thread_pool_audit_log_writer_t;
-    audit_log_output_target_t() : writing(false) { }
+    audit_log_output_target_t() : write_head(0), read_head(0), parity(true), writing(false) {
+        pending_messages.reserve(512);
+    }
 
     virtual ~audit_log_output_target_t() { }
 
@@ -63,11 +65,16 @@ public:
 
     std::set<log_type_t> tags;
 
-    std::deque<counted_t<audit_log_message_t> > pending_messages;
+    std::vector<counted_t<audit_log_message_t> > pending_messages;
+    size_t write_head;
+    size_t read_head;
+    bool parity;
 protected:
     new_mutex_t queue_mutex;
     new_mutex_t write_mutex;
     new_mutex_t write_flag_mutex;
+
+    new_mutex_t backpressure_mutex;
 
     bool writing;
 
