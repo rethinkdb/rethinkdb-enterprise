@@ -56,7 +56,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
         logERR("\nAudit Config file Error(offset %u): %s\n",
                 (unsigned)d.GetErrorOffset(),
                 GetParseError_En(d.GetParseError()));
-        logERR("Using default auditing configuration.\n");
+        logERR("Audit logging will be DISABLED.\n");
 
         // Disable auditing and exit
         _enable_auditing = false;
@@ -105,8 +105,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
                 new_file->install();
                 file_targets.push_back(std::move(new_file));
             }
-        } else {
-            logWRN("File output is not configured for auditing.");
         }
     }
 
@@ -124,8 +122,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
                 counted_t<audit_log_output_target_t>(syslog_target)));
 
         file_targets.push_back(std::move(syslog_target));
-    } else {
-        logWRN("Syslog output is not configured for auditing.");
     }
 
     if (_enable_auditing) {
