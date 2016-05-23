@@ -55,6 +55,7 @@ public:
                                   write_head(0),
                                   read_head(0),
                                   parity(true),
+                                  write_pump(write),
                                   writing(false) {
         pending_messages.reserve(256);
     }
@@ -75,6 +76,7 @@ public:
     size_t read_head;
     bool parity;
 protected:
+    pump_coro_t write_pump;
     new_mutex_t queue_mutex;
     new_mutex_t write_mutex;
     new_mutex_t write_flag_mutex;

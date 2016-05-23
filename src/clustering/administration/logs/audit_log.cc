@@ -299,6 +299,7 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
             write_head = 0;
             parity = !parity;
         }
+        logWRN("Distance: %lu \n", read_head - write_head);
     }
 
     bool do_write = false;
@@ -324,6 +325,7 @@ void audit_log_output_target_t::write() {
     bool ok = true;
     // Do the actual writing
     // Only one coroutine will be here at once, no locking.
+    int written = 0;
     while (!(parity == true && read_head == write_head)) {
         counted_t<audit_log_message_t> msg;
         {
@@ -333,6 +335,7 @@ void audit_log_output_target_t::write() {
                 parity = !parity;
             }
         }
+        ++written;
         write_internal(std::move(msg),
                        &error_message,
                        &ok);
@@ -340,4 +343,5 @@ void audit_log_output_target_t::write() {
             logERR("Failed to write to audit log: %s", error_message.c_str());
         }
     }
+    logWRN("Wrote %d\n", written);
 };
