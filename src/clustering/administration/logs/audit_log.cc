@@ -158,7 +158,6 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
                            format_log_level(msg->level).c_str(),
                            type_to_string[msg->type].c_str(),
                            msg->message.c_str());
-
     return msg_string;
 }
 
