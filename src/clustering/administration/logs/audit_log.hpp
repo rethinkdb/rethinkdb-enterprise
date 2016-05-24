@@ -55,9 +55,9 @@ public:
                                   write_head(0),
                                   read_head(0),
                                   parity(true),
-                                  write_pump(write),
                                   writing(false) {
         pending_messages.reserve(256);
+        max_messages = 256;
     }
 
     virtual ~audit_log_output_target_t() { }
@@ -66,22 +66,20 @@ public:
     virtual void write_internal(counted_t<audit_log_message_t> msg, std::string *err_msg, bool *ok_out) = 0;
 
     void write();
-    void emplace_message(counted_t<audit_log_message_t> msg);
+    void emplace_message(counted_t<audit_log_message_t> msg, bool *needs_write);
 
     std::vector<log_type_t> tags;
     int min_severity;
 
     std::vector<counted_t<audit_log_message_t> > pending_messages;
+    size_t max_messages;
     size_t write_head;
     size_t read_head;
     bool parity;
 protected:
-    pump_coro_t write_pump;
-    new_mutex_t queue_mutex;
-    new_mutex_t write_mutex;
-    new_mutex_t write_flag_mutex;
-
-    new_mutex_t backpressure_mutex;
+    cross_thread_mutex_t queue_mutex;
+    cross_thread_mutex_t write_mutex;
+    cross_thread_mutex_t write_flag_mutex;
 
     bool writing;
 

@@ -169,8 +169,17 @@ void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
             // TODO: negative tags or something, this system is kinda cumbersome
             if (it->tags.empty() ||
                 std::find(it->tags.begin(), it->tags.end(), msg->type) != it->tags.end()) {
-                new_mutex_acq_t write_acq(&write_mutex);
-                it->emplace_message(msg);
+
+                bool needs_write;
+                //                logWRN("About to emplace_message \n");
+                it->emplace_message(msg, &needs_write);
+                //                logWRN("About to spawn dangerously\n");
+                if (needs_write) {
+                    coro_t::spawn_now_dangerously(
+                        [&]() {
+                            it->write();
+                        });
+                }
             }
         }
     }
@@ -181,6 +190,7 @@ void audit_log_coro(thread_pool_audit_log_writer_t *writer,
                     log_level_t level,
                     const std::string &message,
                     auto_drainer_t::lock_t) {
+    coro_t::yield();
     on_thread_t thread_switcher(writer->home_thread());
     auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
     // TODO: actually properly construct these writers
@@ -202,7 +212,7 @@ void vaudit_log_internal(log_type_t type, log_level_t level, const char *format,
         std::string message = vstrprintf(format, args);
 #pragma GCC diagnostic pop
 
-        coro_t::spawn_sometime(
+        coro_t::spawn_now_dangerously(
             boost::bind(
                 &audit_log_coro,
                 writer,
@@ -229,7 +239,7 @@ void audit_log_internal
 
 
 void file_output_target_t::write_internal(counted_t<audit_log_message_t> msg, std::string *error_out, bool *ok_out) {
-    new_mutex_acq_t write_acq(&write_mutex);
+    cross_thread_mutex_t::acq_t write_acq(&write_mutex);
 
     if (fd.get() == INVALID_FD) {
         error_out->assign("cannot open or find log file");
@@ -250,7 +260,7 @@ void file_output_target_t::write_internal(counted_t<audit_log_message_t> msg, st
 }
 
 void syslog_output_target_t::write_internal(counted_t<audit_log_message_t> msg, std::string *, bool *ok_out) {
-    new_mutex_acq_t write_acq(&write_mutex);
+    cross_thread_mutex_t::acq_t write_acq(&write_mutex);
     int priority_level = 0;
     switch (msg->level) {
     case log_level_info:
@@ -285,38 +295,32 @@ void syslog_output_target_t::write_internal(counted_t<audit_log_message_t> msg, 
     *ok_out = true;
 }
 
-void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> msg) {
+void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> msg, bool *needs_write) {
     {
-        new_mutex_acq_t write_acq(&queue_mutex);
+        // logWRN("getting queue mutex\n");
+        cross_thread_mutex_t::acq_t write_acq(&queue_mutex);
         while (write_head == read_head && parity == false) {
-            ;;
+            ;;//  logWRN("Spin");
         }
         // Get mutex to modify queue.
 
         // Add new message to write queue
         pending_messages[write_head] = std::move(msg);
-        if (++write_head >= pending_messages.size()) {
+        if (++write_head >= max_messages) {
             write_head = 0;
             parity = !parity;
         }
-        logWRN("Distance: %lu \n", read_head - write_head);
+        //        logWRN("Read: %lu, Write: %lu, Parity: %d", read_head, write_head, parity);
     }
 
-    bool do_write = false;
     {
-        new_mutex_acq_t write_flag_acq(&write_flag_mutex);
+        cross_thread_mutex_t::acq_t write_flag_acq(&write_flag_mutex);
         if (!writing) {
             writing = true;
-            do_write = true;
+            *needs_write = true;
+        } else {
+            *needs_write = false;
         }
-    }
-    if (do_write) {
-        writing = true;
-        thread_pool_t::run_in_blocker_pool(
-            [&]() {
-                write();
-                writing = false;
-            });
     }
 }
 
@@ -326,11 +330,12 @@ void audit_log_output_target_t::write() {
     // Do the actual writing
     // Only one coroutine will be here at once, no locking.
     int written = 0;
+    coro_t::yield();
     while (!(parity == true && read_head == write_head)) {
         counted_t<audit_log_message_t> msg;
         {
             msg = std::move(pending_messages[read_head]);
-            if (++read_head >= pending_messages.size()) {
+            if (++read_head >= max_messages) {
                 read_head = 0;
                 parity = !parity;
             }
@@ -343,5 +348,7 @@ void audit_log_output_target_t::write() {
             logERR("Failed to write to audit log: %s", error_message.c_str());
         }
     }
-    logWRN("Wrote %d\n", written);
-};
+    //    logWRN("Wrote %d\n", written);
+    cross_thread_mutex_t::acq_t write_flag_acq(&write_flag_mutex);
+    writing = false;
+}
