@@ -266,13 +266,6 @@ batched_replace_response_t rdb_replace_and_return_superblock(
                 return resp;
             }
 
-            // Log modified data for auditing
-            auditINF(log_type_t::data,
-                     "job id: %s, old value: %s new value: %s\n",
-                     uuid_to_str(job_id).c_str(),
-                     old_val.print().c_str(),
-                     new_val.print().c_str());
-
             /* Now that the change has passed validation, write it to disk */
             if (new_val.get_type() == ql::datum_t::R_NULL) {
                 kv_location_delete(&kv_location, *info.key, info.btree->timestamp,
@@ -293,6 +286,13 @@ batched_replace_response_t rdb_replace_and_return_superblock(
                 }
                 r_sanity_check(!ql::bad(res));
             }
+
+            // Log modified data for auditing
+            auditINF(log_type_t::data,
+                     "job id: %s, old value: %s new value: %s\n",
+                     uuid_to_str(job_id).c_str(),
+                     old_val.print().c_str(),
+                     new_val.print().c_str());
 
             /* Report the changes for sindex and change-feed purposes */
             if (old_val.get_type() != ql::datum_t::R_NULL) {
