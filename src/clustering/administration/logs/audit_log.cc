@@ -16,9 +16,6 @@
 const std::string config_base_path = "audit/audit_config.json";
 const std::string logs_base_path = "audit/logs/";
 
-
-//TODO does setting a bullshit filename break things?
-
 file_output_target_t::file_output_target_t(std::string server_name, std::string _filename) :
     audit_log_output_target_t(),
     filename(base_path_t(strprintf("%s%s_%s",
@@ -161,7 +158,6 @@ void thread_pool_audit_log_writer_t::uninstall_on_thread(int i) {
 
 std::string thread_pool_audit_log_writer_t::format_audit_log_message(
     counted_t<audit_log_message_t> msg) {
-    // TODO: actual formatting depending on settings
     std::string msg_string;
 
     msg_string = strprintf("%s UTC %s [%s]: %s",
@@ -266,7 +262,7 @@ void audit_log_internal
 void file_output_target_t::write_internal(
     intrusive_list_t<audit_log_message_node_t> *local_queue) {
     if (fd.get() == INVALID_FD) {
-        //TODO
+        logERR("Log file is invalid: %s", errno_string(get_errno()).c_str());
         return;
     }
 
