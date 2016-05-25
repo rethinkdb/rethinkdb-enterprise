@@ -267,7 +267,6 @@ batched_replace_response_t rdb_replace_and_return_superblock(
             }
 
             // Log modified data for auditing
-            // TODO: also need job id, do we have that here?
             auditINF(log_type_t::data,
                      "job id: %s, old value: %s new value: %s\n",
                      uuid_to_str(job_id).c_str(),
