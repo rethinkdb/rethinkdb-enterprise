@@ -20,7 +20,7 @@
 const size_t AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT = 512;
 const size_t AUDIT_MESSAGE_QUEUE_SIZE_LIMIT = 256 * MEGABYTE;
 
-class audit_log_message_t {
+class audit_log_message_t : public slow_atomic_countable_t<audit_log_message_t> {
 public:
     audit_log_message_t() { }
     // TODO remove this hack
@@ -49,8 +49,8 @@ public:
 
 class audit_log_message_node_t : public intrusive_list_node_t<audit_log_message_node_t> {
 public:
-    audit_log_message_node_t(audit_log_message_t _msg) : msg(_msg) { }
-    audit_log_message_t msg;
+    audit_log_message_node_t(counted_t<audit_log_message_t> _msg) : msg(_msg) { }
+    counted_t<audit_log_message_t> msg;
 };
 
 RDB_DECLARE_SERIALIZABLE(audit_log_message_t);
@@ -69,7 +69,7 @@ public:
 
     void write();
     void flush();
-    void emplace_message(audit_log_message_t msg, bool ignore_capacity);
+    void emplace_message(counted_t<audit_log_message_t> msg, bool ignore_capacity);
 
     std::vector<log_type_t> tags;
     int min_severity;
@@ -149,8 +149,8 @@ public:
     thread_pool_audit_log_writer_t(std::string server_name);
     ~thread_pool_audit_log_writer_t();
 
-    static std::string format_audit_log_message(audit_log_message_t msg);
-    void write(audit_log_message_t msg);
+    static std::string format_audit_log_message(counted_t<audit_log_message_t> msg);
+    void write(counted_t<audit_log_message_t> msg);
 
     bool enable_auditing() { return _enable_auditing; }
 private:

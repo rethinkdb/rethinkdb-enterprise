@@ -160,26 +160,26 @@ void thread_pool_audit_log_writer_t::uninstall_on_thread(int i) {
 }
 
 std::string thread_pool_audit_log_writer_t::format_audit_log_message(
-    audit_log_message_t msg) {
+    counted_t<audit_log_message_t> msg) {
     // TODO: actual formatting depending on settings
     std::string msg_string;
 
     msg_string = strprintf("%s UTC %s [%s]: %s",
-                           format_time(msg.timestamp, local_or_utc_time_t::utc).c_str(),
-                           format_log_level(msg.level).c_str(),
-                           type_to_string[msg.type].c_str(),
-                           msg.message.c_str());
+                           format_time(msg->timestamp, local_or_utc_time_t::utc).c_str(),
+                           format_log_level(msg->level).c_str(),
+                           type_to_string[msg->type].c_str(),
+                           msg->message.c_str());
     return msg_string;
 }
 
-void thread_pool_audit_log_writer_t::write(audit_log_message_t msg) {
+void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
     // Select targets by configured severity level
     for (auto it : priority_routing) {
-        if (it->min_severity <= msg.level) {
+        if (it->min_severity <= msg->level) {
 
             // TODO: negative tags or something, this system is kinda cumbersome
             if (it->tags.empty() ||
-                std::find(it->tags.begin(), it->tags.end(), msg.type) != it->tags.end()) {
+                std::find(it->tags.begin(), it->tags.end(), msg->type) != it->tags.end()) {
 
                 it->emplace_message(msg, false);
             }
@@ -187,10 +187,10 @@ void thread_pool_audit_log_writer_t::write(audit_log_message_t msg) {
     }
 }
 
-void audit_log_output_target_t::emplace_message(audit_log_message_t msg,
+void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> msg,
                                                 bool ignore_capacity) {
     auto keepalive = drainer.lock();
-    size_t msg_size = sizeof(msg);
+    size_t msg_size = sizeof(*msg);
     bool over_capacity;
     {
         spinlock_acq_t s_acq(&queue_mutex);
@@ -239,9 +239,10 @@ void vaudit_log_internal(log_type_t type, log_level_t level, const char *format,
         std::string message = vstrprintf(format, args);
 #pragma GCC diagnostic pop
 
-        audit_log_message_t log_msg(message);
-        log_msg.type = type;
-        log_msg.level = level;
+        counted_t<audit_log_message_t> log_msg =
+            make_counted<audit_log_message_t>(message);
+        log_msg->type = type;
+        log_msg->level = level;
 
         writer->write(log_msg);
     } else {
@@ -284,7 +285,7 @@ void syslog_output_target_t::write_internal(intrusive_list_t<audit_log_message_n
     while(auto msg = local_queue->head()) {
         local_queue->pop_front();
         int priority_level = 0;
-        switch (msg->msg.level) {
+        switch (msg->msg->level) {
         case log_level_info:
             priority_level = LOG_INFO;
             break;
