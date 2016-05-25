@@ -33,6 +33,9 @@ std::string format_log_level(log_level_t l) {
         case log_level_notice: return "notice";
         case log_level_warn: return "warn";
         case log_level_error: return "error";
+        case log_level_critical: return "critical";
+        case log_level_alert: return "alert";
+        case log_level_emergency: return "emergency";
         default: unreachable();
     }
 }
@@ -412,6 +415,9 @@ bool fallback_log_writer_t::write(const log_message_t &msg, std::string *error_o
         case log_level_debug:
         case log_level_warn:
         case log_level_error:
+        case log_level_critical:
+        case log_level_alert:
+        case log_level_emergency:
             write_stream = stderr;
             fileno = STDERR_FILENO;
             break;
@@ -438,7 +444,6 @@ bool fallback_log_writer_t::write(const log_message_t &msg, std::string *error_o
             error_out->assign("cannot write to stdout/stderr: " + errno_string(get_errno()));
             return false;
         }
-
 
 #ifdef _WIN32
         // WINDOWS TODO

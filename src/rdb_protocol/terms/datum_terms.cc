@@ -4,7 +4,6 @@
 #include <string>
 
 #include "rdb_protocol/op.hpp"
-#include "clustering/administration/logs/audit_log.hpp"
 
 namespace ql {
 
