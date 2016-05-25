@@ -1,0 +1,20 @@
+{
+    "enable_auditing": true,
+    "files":
+    [
+        {
+            "filename": "rethinkdb_audit.log",
+            "min_severity": 0,
+            "tags": ["log", "query", "connection"]
+        },
+        {
+            "filename": "rethinkdb_audit_data.log",
+            "min_severity": 0,
+            "tags": ["data"]
+        }
+    ],
+    "syslog":
+    {
+        "min_severity": 0
+    }
+}

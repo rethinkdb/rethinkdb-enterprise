@@ -118,8 +118,6 @@ bool do_serve(io_backender_t *io_backender,
         log messages will be written using the event loop instead of blocking. */
         thread_pool_log_writer_t log_writer;
 
-        thread_pool_audit_log_writer_t audit_writer;
-
         cluster_semilattice_metadata_t cluster_metadata;
         auth_semilattice_metadata_t auth_metadata;
         heartbeat_semilattice_metadata_t heartbeat_metadata;
@@ -204,6 +202,10 @@ bool do_serve(io_backender_t *io_backender,
             server_config_server.init(new server_config_server_t(
                 &mailbox_manager, metadata_file));
         }
+
+        thread_pool_audit_log_writer_t audit_writer(
+            server_config_server->get_config()
+            ->get().config.name.c_str());
 
         /* `server_config_client` is used to get a list of all connected servers and
         request information about their names and tags. It can also be used to change

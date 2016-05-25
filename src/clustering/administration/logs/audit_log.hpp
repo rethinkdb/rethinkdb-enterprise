@@ -85,9 +85,7 @@ protected:
 
 class file_output_target_t : public audit_log_output_target_t {
 public:
-    file_output_target_t(std::string _filename) :
-        audit_log_output_target_t(),
-        filename(base_path_t(_filename)) { }
+    file_output_target_t(std::string server_name, std::string _filename);
 
     virtual ~file_output_target_t() final {
     }
@@ -148,7 +146,7 @@ void audit_log_internal(log_type_t type, log_level_t level, const char *format, 
 
 class thread_pool_audit_log_writer_t : public home_thread_mixin_t {
 public:
-    thread_pool_audit_log_writer_t();
+    thread_pool_audit_log_writer_t(std::string server_name);
     ~thread_pool_audit_log_writer_t();
 
     static std::string format_audit_log_message(audit_log_message_t msg);

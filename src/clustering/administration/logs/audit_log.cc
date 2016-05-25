@@ -12,8 +12,18 @@
 #include "rapidjson/filereadstream.h"
 #include "thread_local.hpp"
 
-// Setup type routing
-// TODO: is there a better format for this back-and-forth table?
+const std::string config_base_path = "audit/audit_config.json";
+const std::string logs_base_path = "audit/logs/";
+
+
+//TODO does setting a bullshit filename break things?
+
+file_output_target_t::file_output_target_t(std::string server_name, std::string _filename) :
+    audit_log_output_target_t(),
+    filename(base_path_t(strprintf("%s%s_%s",
+                                   logs_base_path.c_str(),
+                                   server_name.c_str(),
+                                   _filename.c_str()))) { }
 
 std::map<std::string, log_type_t> string_to_type {
     {"log", log_type_t::log},
@@ -31,8 +41,8 @@ std::map<log_type_t, std::string> type_to_string {
     {log_type_t::blarg, "blarg"},
     {log_type_t::blah,"blah"}};
 
-thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
-    config_filename("audit_config.json"),
+thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string server_name) :
+    config_filename(config_base_path),
     _enable_auditing(true) {
 
     pmap(
@@ -72,6 +82,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t() :
                 guarantee(files[i]["filename"].IsString());
 
                 counted_t<file_output_target_t> new_file = make_counted<file_output_target_t>(
+                    server_name,
                     files[i]["filename"].GetString());
 
                 if (files[i]["min_severity"].IsInt()) {
@@ -179,14 +190,20 @@ void thread_pool_audit_log_writer_t::write(audit_log_message_t msg) {
 void audit_log_output_target_t::emplace_message(audit_log_message_t msg,
                                                 bool ignore_capacity) {
     auto keepalive = drainer.lock();
+    size_t msg_size = sizeof(msg);
     bool over_capacity;
     {
         spinlock_acq_t s_acq(&queue_mutex);
         queue.push_back(new audit_log_message_node_t(msg));
-        over_capacity = queue.size() > AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT;
-        // TODO: Check total size as well
+        queue_size += msg_size;
     }
+    over_capacity = queue.size() > AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT
+        || queue_size > AUDIT_MESSAGE_QUEUE_SIZE_LIMIT;
     if (!ignore_capacity && over_capacity) {
+        {
+            spinlock_acq_t a_acq(&queue_mutex);
+            queue_size = 0;
+        }
         on_thread_t rethreader(write_pump.home_thread());
         write_pump.notify();
         cond_t non_interruptor;
