@@ -4,6 +4,7 @@
 
 #include "errors.hpp"
 #include <boost/bind.hpp>
+#include <sys/stat.h>
 
 #include "arch/runtime/thread_pool.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
@@ -29,17 +30,13 @@ std::map<std::string, log_type_t> string_to_type {
     {"log", log_type_t::log},
     {"query", log_type_t::query},
     {"connection", log_type_t::connection},
-    {"data", log_type_t::data},
-    {"blarg", log_type_t::blarg},
-    {"blah", log_type_t::blah}};
+    {"data", log_type_t::data}};
 
 std::map<log_type_t, std::string> type_to_string {
     {log_type_t::log, "log"},
     {log_type_t::query, "query"},
     {log_type_t::connection, "connection"},
-    {log_type_t::data, "data"},
-    {log_type_t::blarg, "blarg"},
-    {log_type_t::blah,"blah"}};
+    {log_type_t::data, "data"}};
 
 thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string server_name) :
     config_filename(config_base_path),
@@ -49,7 +46,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
 
-    // TODO: I can probably do this with nice shiny C++ streams.
+    // This is how rapidjson recommends doing this.
     char readBuffer[65536];
     FILE *fp = fopen(config_filename.path().c_str(), "r");
 
@@ -79,7 +76,8 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
             for (rapidjson::SizeType i = 0; i < files.Size(); ++i) {
                 guarantee(files[i]["filename"].IsString());
 
-                counted_t<file_output_target_t> new_file = make_counted<file_output_target_t>(
+                counted_t<file_output_target_t> new_file =
+                    make_counted<file_output_target_t>(
                     server_name,
                     files[i]["filename"].GetString());
 
@@ -105,13 +103,18 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
                         }
                     }
                 }
-                new_file->install();
+                bool install_ok = new_file->install();
+                if (!install_ok) {
+                    _enable_auditing = false;
+                    break;
+                }
                 file_targets.push_back(std::move(new_file));
             }
         }
     }
 
-    counted_t<syslog_output_target_t> syslog_target = make_counted<syslog_output_target_t>();
+    counted_t<syslog_output_target_t> syslog_target =
+        make_counted<syslog_output_target_t>();
     if (_enable_auditing && d.HasMember("syslog") && d["syslog"].IsObject()) {
         if (d["syslog"]["min_severity"].IsInt()) {
             syslog_target->min_severity = d["syslog"]["min_severity"].GetInt();
@@ -174,9 +177,10 @@ void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
     for (auto it : priority_routing) {
         if (it->min_severity <= msg->level) {
 
-            // TODO: negative tags or something, this system is kinda cumbersome
             if (it->tags.empty() ||
-                std::find(it->tags.begin(), it->tags.end(), msg->type) != it->tags.end()) {
+                std::find(it->tags.begin(),
+                          it->tags.end(),
+                          msg->type) != it->tags.end()) {
 
                 it->emplace_message(msg, false);
             }
@@ -187,7 +191,7 @@ void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
 void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> msg,
                                                 bool ignore_capacity) {
     auto keepalive = drainer.lock();
-    size_t msg_size = sizeof(*msg);
+    size_t msg_size = sizeof(msg->message);
     bool over_capacity;
     {
         spinlock_acq_t s_acq(&queue_mutex);
@@ -224,7 +228,10 @@ void audit_log_output_target_t::flush() {
         });
 }
 
-void vaudit_log_internal(log_type_t type, log_level_t level, const char *format, va_list args) {
+void vaudit_log_internal(log_type_t type,
+                         log_level_t level,
+                         const char *format,
+                         va_list args) {
     thread_pool_audit_log_writer_t *writer;
     writer = TLS_get_global_audit_log_writer();
     auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
@@ -237,15 +244,11 @@ void vaudit_log_internal(log_type_t type, log_level_t level, const char *format,
 #pragma GCC diagnostic pop
 
         counted_t<audit_log_message_t> log_msg =
-            make_counted<audit_log_message_t>(message);
-        log_msg->type = type;
-        log_msg->level = level;
+            make_counted<audit_log_message_t>(level, type, message);
 
         writer->write(log_msg);
     } else {
         logERR("Failed to write audit log message.\n");
-        // TODO: change this to something that actually solves the problem,
-        // or at least fails properly.
     }
 }
 
@@ -260,7 +263,8 @@ void audit_log_internal
 }
 
 
-void file_output_target_t::write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) {
+void file_output_target_t::write_internal(
+    intrusive_list_t<audit_log_message_node_t> *local_queue) {
     if (fd.get() == INVALID_FD) {
         //TODO
         return;
@@ -268,10 +272,13 @@ void file_output_target_t::write_internal(intrusive_list_t<audit_log_message_nod
 
     while (auto msg = local_queue->head()) {
         local_queue->pop_front();
-        std::string msg_str = thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg);
-        ssize_t write_res = ::write(fd.get(), std::move(msg_str).data(), msg_str.length());
+        std::string msg_str =
+            thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg);
+        ssize_t write_res = ::write(fd.get(),
+                                    std::move(msg_str).data(),
+                                    msg_str.length());
         if (write_res != static_cast<ssize_t>(msg_str.length())) {
-            // TODO logERR("Cannot write to log file: " + errno_string(get_errno()));
+            logERR("Cannot write to log file: %s", errno_string(get_errno()).c_str());
         }
         delete msg;
     }

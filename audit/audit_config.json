@@ -3,7 +3,7 @@
     "files":
     [
         {
-            "filename": "rethinkdb_audit.log",
+            "filename": "esrethinkdb_audit.log",
             "min_severity": 0,
             "tags": ["log", "query", "connection"]
         },

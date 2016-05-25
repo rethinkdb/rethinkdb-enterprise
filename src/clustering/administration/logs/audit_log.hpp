@@ -29,20 +29,16 @@ public:
     { }
 
     audit_log_message_t(log_level_t _level,
-                        uuid_u _connection_id,
-                        uuid_u _query_id,
+                        log_type_t _type,
                         std::string _message) :
+        timestamp(clock_realtime()),
+        type(_type),
         level(_level),
-        connection_id(_connection_id),
-        query_id(_query_id),
-        message(_message) {
-        timestamp = clock_realtime();
-    }
+        message(_message) { }
+
     struct timespec timestamp;
     log_type_t type;
     log_level_t level;
-    uuid_u connection_id;
-    uuid_u query_id;
     std::string message;
 };
 
@@ -89,7 +85,7 @@ public:
     virtual ~file_output_target_t() final {
     }
 
-    void install() {
+    bool install() {
         int res;
         do {
             res = open(filename.path().c_str(), O_WRONLY|O_APPEND|O_CREAT, 0644);
@@ -97,9 +93,10 @@ public:
 
         fd.reset(res);
         if (fd.get() == INVALID_FD) {
-            throw std::runtime_error(strprintf("Failed to open log file '%s': %s",
-                                               filename.path().c_str(),
-                                               errno_string(errno).c_str()).c_str());
+            logERR("Failed to open log file '%s': %s",
+                   filename.path().c_str(),
+                   errno_string(errno).c_str());
+            return false;
         }
         // Get the absolute path for the log file, so it will still be valid if
         //  the working directory changes
@@ -116,6 +113,7 @@ public:
             logWRN("Parent directory of log file (%s) could not be synced. (%s)\n",
                    filename.path().c_str(), errno_str);
         }
+        return true;
     }
 
 private:
