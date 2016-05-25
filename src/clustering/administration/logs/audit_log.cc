@@ -66,8 +66,10 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
         _enable_auditing = false;
     } else if (_enable_auditing &&
                d.HasMember("enable_auditing") && d["enable_auditing"].GetBool() == false) {
+        // Auditing config is otherwise correct, but has disabled auditing.
         _enable_auditing = false;
     } else if (_enable_auditing) {
+        // Set up file and syslog targets for audit log.
         if (d.HasMember("files") && d["files"].IsArray()) {
             const rapidjson::Value& files = d["files"];
             for (rapidjson::SizeType i = 0; i < files.Size(); ++i) {
@@ -100,6 +102,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
                         }
                     }
                 }
+                // Setup file output for this file.
                 bool install_ok = new_file->install();
                 if (!install_ok) {
                     _enable_auditing = false;
@@ -194,6 +197,8 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
         queue.push_back(new audit_log_message_node_t(msg));
         queue_size += msg_size;
     }
+    // Add messages to intrusive list unless the batch is full,
+    // then the code will block until a file write is done.
     over_capacity = queue.size() > AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT
         || queue_size > AUDIT_MESSAGE_QUEUE_SIZE_LIMIT;
     if (!ignore_capacity && over_capacity) {
@@ -206,6 +211,7 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
         cond_t non_interruptor;
         write_pump.flush(&non_interruptor);
     } else {
+        // Call the file output function, unless it's already happening.
         call_on_thread(write_pump.home_thread(),
                        [&, keepalive]() {
                            write_pump.notify();
@@ -214,12 +220,14 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
 }
 
 void audit_log_output_target_t::flush() {
+    // Grab all the logs in the local queue to write out, and reset queue.
     intrusive_list_t<audit_log_message_node_t> local_queue;
     {
         spinlock_acq_t s_acq(&queue_mutex);
         local_queue.append_and_clear(&queue);
     }
     thread_pool_t::run_in_blocker_pool([&]() {
+            // This may block on disk usage.
             write_internal(&local_queue);
         });
 }
