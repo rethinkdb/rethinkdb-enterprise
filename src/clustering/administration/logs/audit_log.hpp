@@ -23,10 +23,9 @@ const size_t AUDIT_MESSAGE_QUEUE_SIZE_LIMIT = 256 * MEGABYTE;
 class audit_log_message_t : public slow_atomic_countable_t<audit_log_message_t> {
 public:
     audit_log_message_t() { }
-    // TODO remove this hack
     explicit audit_log_message_t(std::string _message) :
         timestamp(clock_realtime()),
-            message(_message)
+        message(_message)
     { }
 
     audit_log_message_t(log_level_t _level,

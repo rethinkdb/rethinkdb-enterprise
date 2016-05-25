@@ -74,8 +74,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
                d.HasMember("enable_auditing") && d["enable_auditing"].GetBool() == false) {
         _enable_auditing = false;
     } else if (_enable_auditing) {
-        // TODO don't require files
-        // Parse output file configuration from config file.
         if (d.HasMember("files") && d["files"].IsArray()) {
             const rapidjson::Value& files = d["files"];
             for (rapidjson::SizeType i = 0; i < files.Size(); ++i) {
@@ -99,7 +97,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
                         for (auto it = tags.Begin(); it != tags.End(); ++it) {
                             auto tag = string_to_type.find(it->GetString());
                             if (tag == string_to_type.end()) {
-                                //TODO handle these errors better
                                 logWRN("Auditing configuration error: unknown tag %s\n",
                                        it->GetString());
                             } else {
