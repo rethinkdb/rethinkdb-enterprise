@@ -10,13 +10,17 @@
 #include "arch/io/disk.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
 #include "concurrency/new_mutex.hpp"
+#include "concurrency/cross_thread_auto_drainer.hpp"
 #include "containers/counted.hpp"
 #include "containers/uuid.hpp"
 
 #include "logger.hpp"
 #include "utils.hpp"
 
-class audit_log_message_t : public slow_atomic_countable_t<audit_log_message_t> {
+const size_t AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT = 512;
+const size_t AUDIT_MESSAGE_QUEUE_SIZE_LIMIT = 256 * MEGABYTE;
+
+class audit_log_message_t {
 public:
     audit_log_message_t() { }
     // TODO remove this hack
@@ -43,6 +47,12 @@ public:
     std::string message;
 };
 
+class audit_log_message_node_t : public intrusive_list_node_t<audit_log_message_node_t> {
+public:
+    audit_log_message_node_t(audit_log_message_t _msg) : msg(_msg) { }
+    audit_log_message_t msg;
+};
+
 RDB_DECLARE_SERIALIZABLE(audit_log_message_t);
 
 // Handles output to a file, syslog, or other output target.
@@ -51,39 +61,26 @@ RDB_DECLARE_SERIALIZABLE(audit_log_message_t);
 class audit_log_output_target_t : public slow_atomic_countable_t<audit_log_output_target_t> {
 public:
     friend class thread_pool_audit_log_writer_t;
-    audit_log_output_target_t() : min_severity(0),
-                                  write_head(0),
-                                  read_head(0),
-                                  parity(true),
-                                  writing(false) {
-        pending_messages.reserve(256);
-        max_messages = 256;
-    }
+    audit_log_output_target_t() : min_severity(0), write_pump([&] (signal_t*) {flush();}) { }
 
     virtual ~audit_log_output_target_t() { }
 
-    // Maybe I can't actually generalize the locking behavior, we'll see
-    virtual void write_internal(counted_t<audit_log_message_t> msg, std::string *err_msg, bool *ok_out) = 0;
+    virtual void write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) = 0;
 
     void write();
-    void emplace_message(counted_t<audit_log_message_t> msg, bool *needs_write);
+    void flush();
+    void emplace_message(audit_log_message_t msg, bool ignore_capacity);
 
     std::vector<log_type_t> tags;
     int min_severity;
 
-    std::vector<counted_t<audit_log_message_t> > pending_messages;
-    size_t max_messages;
-    size_t write_head;
-    size_t read_head;
-    bool parity;
+    spinlock_t queue_mutex;
+    intrusive_list_t<audit_log_message_node_t> queue;
+    size_t queue_size;
+    pump_coro_t write_pump;
 protected:
-    cross_thread_mutex_t queue_mutex;
-    cross_thread_mutex_t write_mutex;
-    cross_thread_mutex_t write_flag_mutex;
 
-    bool writing;
-
-    auto_drainer_t drainer;
+    cross_thread_auto_drainer_t drainer;
 };
 
 class file_output_target_t : public audit_log_output_target_t {
@@ -125,7 +122,7 @@ public:
     }
 
 private:
-    void write_internal(counted_t<audit_log_message_t> msg, std::string *err_msg, bool *ok_out) final;
+    void write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) final;
 
     base_path_t filename;
     scoped_fd_t fd;
@@ -142,7 +139,7 @@ public:
     }
 
 private:
-    void write_internal(counted_t<audit_log_message_t> msg, std::string *err_msg, bool *ok_out) final;
+    void write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) final;
 };
 
 void audit_log_internal(log_type_t type, log_level_t level, const char *format, ...)
@@ -154,8 +151,8 @@ public:
     thread_pool_audit_log_writer_t();
     ~thread_pool_audit_log_writer_t();
 
-    static std::string format_audit_log_message(counted_t<audit_log_message_t> msg);
-    void write(counted_t<audit_log_message_t> msg);
+    static std::string format_audit_log_message(audit_log_message_t msg);
+    void write(audit_log_message_t msg);
 
     bool enable_auditing() { return _enable_auditing; }
 private:
