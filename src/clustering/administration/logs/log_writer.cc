@@ -5,7 +5,6 @@
 #include <fcntl.h>
 #include <pthread.h>
 #include <stdarg.h>
-#include <syslog.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
@@ -34,9 +33,6 @@ std::string format_log_level(log_level_t l) {
         case log_level_notice: return "notice";
         case log_level_warn: return "warn";
         case log_level_error: return "error";
-        case log_level_critical: return "critical";
-        case log_level_alert: return "alert";
-        case log_level_emergency: return "emergency";
         default: unreachable();
     }
 }
@@ -405,28 +401,19 @@ bool fallback_log_writer_t::write(const log_message_t &msg, std::string *error_o
 
     FILE* write_stream = nullptr;
     int fileno = -1;
-    int priority_level = 0;
     switch (msg.level) {
         case log_level_info:
             // no message on stdout/stderr
-            priority_level = LOG_INFO;
             break;
         case log_level_notice:
             write_stream = stdout;
             fileno = STDOUT_FILENO;
-            priority_level = LOG_NOTICE;
             break;
         case log_level_debug:
-            priority_level = LOG_DEBUG;
         case log_level_warn:
-            priority_level = LOG_WARNING;
         case log_level_error:
-        case log_level_critical:
-        case log_level_alert:
-        case log_level_emergency:
             write_stream = stderr;
             fileno = STDERR_FILENO;
-            priority_level = LOG_ERR;
             break;
         default:
             unreachable();
@@ -452,8 +439,6 @@ bool fallback_log_writer_t::write(const log_message_t &msg, std::string *error_o
             return false;
         }
 
-        // Output to syslog as well
-        //syslog(priority_level, "%s", console_formatted.data());
 
 #ifdef _WIN32
         // WINDOWS TODO
@@ -526,12 +511,10 @@ thread_pool_log_writer_t::thread_pool_log_writer_t()
     pmap(
         get_num_threads(),
         boost::bind(&thread_pool_log_writer_t::install_on_thread, this, _1));
-    openlog("rethinkdb", LOG_PID, 0);
 }
 
 thread_pool_log_writer_t::~thread_pool_log_writer_t() {
     pmap(get_num_threads(), boost::bind(&thread_pool_log_writer_t::uninstall_on_thread, this, _1));
-    closelog();
 }
 
 std::vector<log_message_t> thread_pool_log_writer_t::tail(
