@@ -124,6 +124,11 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
         file_targets.push_back(std::move(syslog_target));
     }
 
+    counted_t<console_output_target_t> console_target =
+        make_counted<console_output_target_t>();
+    priority_routing.push_back(counted_t<console_output_target_t>(console_target));
+    file_targets.push_back(std::move(console_target));
+
     if (_enable_auditing) {
         logNTC("Audit logging enabled.\n");
     } else {
@@ -160,14 +165,23 @@ void thread_pool_audit_log_writer_t::uninstall_on_thread(int i) {
 }
 
 std::string thread_pool_audit_log_writer_t::format_audit_log_message(
-    counted_t<audit_log_message_t> msg) {
+    counted_t<audit_log_message_t> msg,
+    bool for_console = false) {
     std::string msg_string;
 
-    msg_string = strprintf("%s UTC %s [%s]: %s",
-                           format_time(msg->timestamp, local_or_utc_time_t::utc).c_str(),
-                           format_log_level(msg->level).c_str(),
-                           type_to_string[msg->type].c_str(),
-                           msg->message.c_str());
+    bool ends_in_newline = msg->message.back() == '\n';
+    if (!for_console) {
+        msg_string = strprintf("%s UTC %s [%s]: %s%s",
+                               format_time(msg->timestamp, local_or_utc_time_t::utc).c_str(),
+                               format_log_level(msg->level).c_str(),
+                               type_to_string[msg->type].c_str(),
+                               msg->message.c_str(),
+                               ends_in_newline ? "" : "\n");
+    } else {
+        msg_string = strprintf("%s%s",
+                               msg->message.c_str(),
+                               ends_in_newline ? "" : "\n");
+    }
     return msg_string;
 }
 
@@ -236,34 +250,41 @@ void vaudit_log_internal(log_type_t type,
                          log_level_t level,
                          const char *format,
                          va_list args) {
-    thread_pool_audit_log_writer_t *writer;
-    writer = TLS_get_global_audit_log_writer();
-    auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
-    int writer_block = TLS_get_audit_log_writer_block();
-    if (writer != nullptr && writer_block == 0) {
+    thread_pool_audit_log_writer_t *writer = TLS_get_global_audit_log_writer();
+    if (writer != nullptr && writer->enable_auditing()) {
+        auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
+        int writer_block = TLS_get_audit_log_writer_block();
+        if (writer != nullptr && writer_block == 0) {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
-        std::string message = vstrprintf(format, args);
+            std::string message = vstrprintf(format, args);
 #pragma GCC diagnostic pop
 
-        counted_t<audit_log_message_t> log_msg =
-            make_counted<audit_log_message_t>(level, type, message);
+            counted_t<audit_log_message_t> log_msg =
+                make_counted<audit_log_message_t>(level, type, message);
 
-        writer->write(log_msg);
+            writer->write(log_msg);
+        } else {
+            logERR("Failed to write audit log message.\n");
+        }
     } else {
-        logERR("Failed to write audit log message.\n");
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+        // TODO: Audit logger should always work as long as it exists,
+        // so this should only happen on startup?
+        std::string message = vstrprintf(format, args);
+        fprintf(stderr, format, message.c_str());
+#pragma GCC diagnostic pop
     }
 }
 
 void audit_log_internal
 (log_type_t type, log_level_t level, const char *format, ...) {
-    if (TLS_get_global_audit_log_writer()->enable_auditing()) {
         va_list args;
         va_start(args, format);
         vaudit_log_internal(type, level, format, args);
         va_end(args);
-    }
 }
 
 
@@ -287,6 +308,42 @@ void file_output_target_t::write_internal(
         delete msg;
     }
     return;
+}
+
+void console_output_target_t::write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) {
+    while(auto msg = local_queue->head()) {
+        int fileno = -1;
+        local_queue->pop_front();
+        switch (msg->msg->level) {
+        case log_level_info:
+            // no message on stdout/stderr
+            break;
+        case log_level_notice:
+            fileno = STDOUT_FILENO;
+            break;
+        case log_level_debug:
+        case log_level_warn:
+        case log_level_error:
+        case log_level_critical:
+        case log_level_alert:
+        case log_level_emergency:
+            fileno = STDERR_FILENO;
+            break;
+        default:
+            unreachable();
+        }
+        std::string msg_str =
+            thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg, true);
+        UNUSED ssize_t write_res = ::write(fileno, msg_str.c_str(), msg_str.length());
+
+        int fsync_res = fsync(fileno);
+        if (fsync_res != 0 && !(get_errno() == EROFS || get_errno() == EINVAL ||
+                                get_errno() == ENOTSUP)) {
+            // TODO: something
+            ;;
+        }
+        delete msg;
+    }
 }
 
 void syslog_output_target_t::write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) {

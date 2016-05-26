@@ -137,6 +137,16 @@ private:
     void write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) final;
 };
 
+class console_output_target_t : public audit_log_output_target_t {
+public:
+    console_output_target_t() : audit_log_output_target_t() { }
+
+    ~console_output_target_t() { }
+
+private:
+    void write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) final;
+};
+
 void audit_log_internal(log_type_t type, log_level_t level, const char *format, ...)
     ATTR_FORMAT(printf, 3, 4);
 
@@ -146,7 +156,7 @@ public:
     thread_pool_audit_log_writer_t(std::string server_name);
     ~thread_pool_audit_log_writer_t();
 
-    static std::string format_audit_log_message(counted_t<audit_log_message_t> msg);
+    static std::string format_audit_log_message(counted_t<audit_log_message_t> msg, bool for_console);
     void write(counted_t<audit_log_message_t> msg);
 
     bool enable_auditing() { return _enable_auditing; }

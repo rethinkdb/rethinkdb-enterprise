@@ -679,11 +679,9 @@ void log_internal(const char *src_file, int src_line, log_level_t level, const c
 void vlog_internal(UNUSED const char *src_file, UNUSED int src_line, log_level_t level, const char *format, va_list args) {
     thread_pool_log_writer_t *writer;
     if ((writer = TLS_get_global_log_writer()) && TLS_get_log_writer_block() == 0) {
-        auto_drainer_t::lock_t lock(TLS_get_global_log_drainer());
+        // TODO: REALLY HACKY AT THE MOMENT
 
-        std::string message = vstrprintf(format, args);
-        coro_t::spawn_sometime(boost::bind(&log_coro, writer, level, message, lock));
-
+        vaudit_log_internal(log_type_t::log, level, format, args);
     } else {
         std::string message = vstrprintf(format, args);
 

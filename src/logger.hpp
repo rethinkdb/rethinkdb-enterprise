@@ -36,6 +36,10 @@ void vlog_internal(const char *src_file, int src_line, log_level_t level, const 
 void audit_log_internal(log_type_t type, log_level_t level, const char *format, ...)
     ATTR_FORMAT(printf, 3, 4);
 
+void vaudit_log_internal(log_type_t type,
+                         log_level_t level,
+                         const char *format,
+                         va_list args);
 #ifndef NDEBUG
 #define logDBG(fmt, ...) log_internal(__FILE__, __LINE__, log_level_debug, (fmt), ##__VA_ARGS__)
 #define vlogDBG(fmt, args) vlog_internal(__FILE__, __LINE__, log_level_debug, (fmt), (args))
@@ -49,11 +53,17 @@ void audit_log_internal(log_type_t type, log_level_t level, const char *format, 
 #define auditWRN(type, fmt, ...) audit_log_internal(type, log_level_warn, (fmt), ##__VA_ARGS__)
 #define auditERR(type, fmt, ...) audit_log_internal(type, log_level_error, (fmt), ##__VA_ARGS__)
 
+#define logINF(fmt, ...) audit_log_internal(log_type_t::log, log_level_info, (fmt), ##__VA_ARGS__)
+#define logNTC(fmt, ...) audit_log_internal(log_type_t::log, log_level_notice, (fmt), ##__VA_ARGS__)
+#define logWRN(fmt, ...) audit_log_internal(log_type_t::log, log_level_warn, (fmt), ##__VA_ARGS__)
+#define logERR(fmt, ...) audit_log_internal(log_type_t::log, log_level_error, (fmt), ##__VA_ARGS__)
+
+/*
 #define logINF(fmt, ...) log_internal(__FILE__, __LINE__, log_level_info, (fmt), ##__VA_ARGS__)
 #define logNTC(fmt, ...) log_internal(__FILE__, __LINE__, log_level_notice, (fmt), ##__VA_ARGS__)
 #define logWRN(fmt, ...) log_internal(__FILE__, __LINE__, log_level_warn, (fmt), ##__VA_ARGS__)
 #define logERR(fmt, ...) log_internal(__FILE__, __LINE__, log_level_error, (fmt), ##__VA_ARGS__)
-
+*/
 #define vlogINF(fmt, args) vlog_internal(__FILE__, __LINE__, log_level_info, (fmt), (args))
 #define vlogNTC(fmt, args) vlog_internal(__FILE__, __LINE__, log_level_notice, (fmt), (args))
 #define vlogWRN(fmt, args) vlog_internal(__FILE__, __LINE__, log_level_warn, (fmt), (args))
