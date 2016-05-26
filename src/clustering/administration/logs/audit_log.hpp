@@ -25,7 +25,7 @@ public:
     audit_log_message_t() { }
     explicit audit_log_message_t(std::string _message) :
         timestamp(clock_realtime()),
-        message(_message)
+        message(std::move(_message))
     { }
 
     audit_log_message_t(log_level_t _level,
