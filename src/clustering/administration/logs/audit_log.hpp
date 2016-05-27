@@ -20,6 +20,8 @@
 const size_t AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT = 512;
 const size_t AUDIT_MESSAGE_QUEUE_SIZE_LIMIT = 256 * MEGABYTE;
 
+void install_logfile_output_target(std::string filename);
+
 class audit_log_message_t : public slow_atomic_countable_t<audit_log_message_t> {
 public:
     audit_log_message_t() { }
@@ -78,8 +80,9 @@ protected:
     cross_thread_auto_drainer_t drainer;
 };
 
-class file_output_target_t : public audit_log_output_target_t {
+class file_output_target_t : public audit_log_output_target_t, public home_thread_mixin_t {
 public:
+    file_output_target_t(std::string _filename);
     file_output_target_t(std::string server_name, std::string _filename);
 
     virtual ~file_output_target_t() final {
@@ -115,10 +118,8 @@ public:
         }
         return true;
     }
-
-private:
     void write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) final;
-
+private:
     base_path_t filename;
     scoped_fd_t fd;
 };

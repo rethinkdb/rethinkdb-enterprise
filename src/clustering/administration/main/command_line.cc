@@ -44,6 +44,7 @@
 #include "clustering/administration/main/directory_lock.hpp"
 #include "clustering/administration/main/version_check.hpp"
 #include "clustering/administration/metadata.hpp"
+#include "clustering/administration/logs/audit_log.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
 #include "clustering/administration/main/path.hpp"
 #include "clustering/administration/persist/file.hpp"
@@ -394,7 +395,8 @@ void initialize_logfile(const std::map<std::string, options::values_t> &opts,
     } else {
         filename = dirpath.path() + "/log_file";
     }
-    install_fallback_log_writer(filename);
+
+    install_logfile_output_target(filename);
 }
 
 std::string get_web_path(boost::optional<std::string> web_static_directory) {

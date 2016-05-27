@@ -13,6 +13,13 @@
 #include "rapidjson/filereadstream.h"
 #include "thread_local.hpp"
 
+TLS_with_init(thread_pool_audit_log_writer_t *, global_audit_log_writer, nullptr);
+TLS_with_init(auto_drainer_t *, global_audit_log_drainer, nullptr);
+TLS_with_init(int, audit_log_writer_block, 0);
+
+// We need to set this in command_line.cc
+logs_output_target_t * global_logfile_target;
+
 const std::string config_base_path = "audit/audit_config.json";
 const std::string logs_base_path = "audit/logs/";
 
@@ -22,6 +29,10 @@ file_output_target_t::file_output_target_t(std::string server_name, std::string 
                                    logs_base_path.c_str(),
                                    server_name.c_str(),
                                    _filename.c_str()))) { }
+
+file_output_target_t::file_output_target_t(std::string _filename) :
+    audit_log_output_target_t(),
+    filename(_filename.c_str()) { }
 
 std::map<std::string, log_type_t> string_to_type {
     {"log", log_type_t::log},
@@ -113,6 +124,12 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
         }
     }
 
+    counted_t<file_output_target_t> logfile(global_logfile_target);
+    logfile->tags.push_back(log_type_t::log);
+    logfile->install();
+    priority_routing.push_back(counted_t<audit_log_output_target_t>(logfile));
+    file_targets.push_back(std::move(logfile));
+
     counted_t<syslog_output_target_t> syslog_target =
         make_counted<syslog_output_target_t>();
     if (_enable_auditing && d.HasMember("syslog") && d["syslog"].IsObject()) {
@@ -145,9 +162,10 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
         boost::bind(&thread_pool_audit_log_writer_t::uninstall_on_thread, this, _1));
 }
 
-TLS_with_init(thread_pool_audit_log_writer_t *, global_audit_log_writer, nullptr);
-TLS_with_init(auto_drainer_t *, global_audit_log_drainer, nullptr);
-TLS_with_init(int, audit_log_writer_block, 0);
+void install_logfile_output_target(std::string filename) {
+    global_logfile_target = new file_output_target_t(filename);
+    global_logfile_target->install();
+}
 
 void thread_pool_audit_log_writer_t::install_on_thread(int i) {
     on_thread_t thread_switcher((threadnum_t(i)));
@@ -250,32 +268,32 @@ void vaudit_log_internal(log_type_t type,
                          log_level_t level,
                          const char *format,
                          va_list args) {
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-nonliteral"
+    std::string message = vstrprintf(format, args);
+#pragma GCC diagnostic pop
+
+    counted_t<audit_log_message_t> log_msg =
+        make_counted<audit_log_message_t>(level, type, message);
     thread_pool_audit_log_writer_t *writer = TLS_get_global_audit_log_writer();
-    if (writer != nullptr && writer->enable_auditing()) {
+    // TODO: reimplement disabling auditing
+    if (writer != nullptr) {
         auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
         int writer_block = TLS_get_audit_log_writer_block();
         if (writer != nullptr && writer_block == 0) {
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-            std::string message = vstrprintf(format, args);
-#pragma GCC diagnostic pop
-
-            counted_t<audit_log_message_t> log_msg =
-                make_counted<audit_log_message_t>(level, type, message);
 
             writer->write(log_msg);
         } else {
             logERR("Failed to write audit log message.\n");
         }
     } else {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-nonliteral"
-        // TODO: Audit logger should always work as long as it exists,
-        // so this should only happen on startup?
-        std::string message = vstrprintf(format, args);
-        fprintf(stderr, format, message.c_str());
-#pragma GCC diagnostic pop
+        // We don't have the thread pool yet.
+        coro_t::spawn_now_dangerously([&] () {
+                intrusive_list_t<audit_log_message_node_t> temp_queue;
+                temp_queue.push_back(new audit_log_message_node_t(log_msg));
+                on_thread_t rethreader(global_logfile_target->home_thread());
+                global_logfile_target->write_internal(&temp_queue);
+            });
     }
 }
 

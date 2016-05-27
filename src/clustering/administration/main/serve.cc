@@ -117,10 +117,7 @@ bool do_serve(io_backender_t *io_backender,
         /* `thread_pool_log_writer_t` automatically registers itself. While it exists,
         log messages will be written using the event loop instead of blocking. */
         thread_pool_log_writer_t log_writer;
-
-        thread_pool_audit_log_writer_t audit_writer(
-            "todo_server_name");
-
+        
         cluster_semilattice_metadata_t cluster_metadata;
         auth_semilattice_metadata_t auth_metadata;
         heartbeat_semilattice_metadata_t heartbeat_metadata;
