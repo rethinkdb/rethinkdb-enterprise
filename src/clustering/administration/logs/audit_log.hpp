@@ -27,6 +27,7 @@ public:
     audit_log_message_t() { }
     explicit audit_log_message_t(std::string _message) :
         timestamp(clock_realtime()),
+        uptime(clock_monotonic()),
         message(std::move(_message))
     { }
 
@@ -34,11 +35,13 @@ public:
                         log_type_t _type,
                         std::string _message) :
         timestamp(clock_realtime()),
+        uptime(clock_monotonic()),
         type(_type),
         level(_level),
         message(_message) { }
 
     struct timespec timestamp;
+    struct timespec uptime;
     log_type_t type;
     log_level_t level;
     std::string message;
@@ -80,6 +83,7 @@ protected:
     cross_thread_auto_drainer_t drainer;
 };
 
+// TODO: change format so log reader can read it.
 class file_output_target_t : public audit_log_output_target_t, public home_thread_mixin_t {
 public:
     file_output_target_t(std::string _filename);
@@ -122,6 +126,7 @@ public:
 private:
     base_path_t filename;
     scoped_fd_t fd;
+    bool is_logfile;
 };
 
 class syslog_output_target_t : public audit_log_output_target_t {

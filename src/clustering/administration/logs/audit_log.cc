@@ -28,11 +28,14 @@ file_output_target_t::file_output_target_t(std::string server_name, std::string 
     filename(base_path_t(strprintf("%s%s_%s",
                                    logs_base_path.c_str(),
                                    server_name.c_str(),
-                                   _filename.c_str()))) { }
+                                   _filename.c_str()))),
+    is_logfile(false) { }
 
+// Allow specifiying direct file path for logs table logs.
 file_output_target_t::file_output_target_t(std::string _filename) :
     audit_log_output_target_t(),
-    filename(_filename.c_str()) { }
+    filename(_filename.c_str()),
+    is_logfile(true) { }
 
 std::map<std::string, log_type_t> string_to_type {
     {"log", log_type_t::log},
@@ -205,6 +208,71 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
     return msg_string;
 }
 
+std::string format_log_message(counted_t<audit_log_message_t> &m, bool for_console) {
+    // never write an info level message to console
+    guarantee(!(for_console && m->level == log_level_info));
+
+    std::string message = m->message;
+    std::string message_reformatted;
+
+    std::string prepend;
+    if (!for_console) {
+        prepend = strprintf("%s %ld.%06llds %s: ",
+                            format_time(m->timestamp, local_or_utc_time_t::local).c_str(),
+                            m->uptime.tv_sec,
+                            m->uptime.tv_nsec / THOUSAND,
+                            format_log_level(m->level).c_str());
+    } else {
+        if (m->level != log_level_info && m->level != log_level_notice) {
+            prepend = strprintf("%s: ", format_log_level(m->level).c_str());
+        }
+    }
+    ssize_t prepend_length = prepend.length();
+
+    ssize_t start = 0, end = message.length() - 1;
+    while (start < static_cast<ssize_t>(message.length()) && message[start] == '\n') {
+        ++start;
+    }
+    while (end >= 0 && (message[end] == '\n' || message[end] == '\r')) {
+        end--;
+    }
+    for (int i = start; i <= end; i++) {
+        if (message[i] == '\n') {
+            if (for_console) {
+                message_reformatted.push_back('\n');
+                message_reformatted.append(prepend_length, ' ');
+            } else {
+                message_reformatted.append("\\n");
+            }
+        } else if (message[i] == '\t') {
+            if (for_console) {
+                message_reformatted.push_back('\t');
+            } else {
+                message_reformatted.append("\\t");
+            }
+        } else if (message[i] == '\\') {
+            if (for_console) {
+                message_reformatted.push_back(message[i]);
+            } else {
+                message_reformatted.append("\\\\");
+            }
+        } else if (message[i] < ' ' || message[i] > '~') {
+#if !defined(NDEBUG)
+             crash("We can't have special characters in log messages because then it "
+                   "would be difficult to parse the log file. Message: %s",
+                   message.c_str());
+#else
+            message_reformatted.push_back('?');
+#endif
+        } else {
+            message_reformatted.push_back(message[i]);
+        }
+    }
+
+    return prepend + message_reformatted;
+}
+
+
 void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
     // Select targets by configured severity level
     for (auto it : priority_routing) {
@@ -290,7 +358,7 @@ void vaudit_log_internal(log_type_t type,
     } else {
         // We don't have the thread pool yet, should only be startup logs.
         guarantee(type == log_type_t::log);
-        //TODO fix thi
+        //TODO fix this
         fprintf(stderr, format, args);
         coro_t::spawn_sometime([log_msg] () {
                 intrusive_list_t<audit_log_message_node_t> temp_queue;
@@ -310,7 +378,6 @@ void audit_log_internal
         va_end(args);
 }
 
-
 void file_output_target_t::write_internal(
     intrusive_list_t<audit_log_message_node_t> *local_queue) {
     if (fd.get() == INVALID_FD) {
@@ -320,8 +387,13 @@ void file_output_target_t::write_internal(
 
     while (auto msg = local_queue->head()) {
         local_queue->pop_front();
-        std::string msg_str =
-            thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg);
+        std::string msg_str;
+        if (!is_logfile) {
+            msg_str  =
+                thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg);
+        } else {
+            msg_str = format_log_message(msg->msg, false) + '\n';
+        }
         ssize_t write_res = ::write(fd.get(),
                                     std::move(msg_str).data(),
                                     msg_str.length());
