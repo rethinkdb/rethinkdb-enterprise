@@ -397,6 +397,8 @@ void initialize_logfile(const std::map<std::string, options::values_t> &opts,
     }
 
     install_logfile_output_target(filename);
+    // TODO so logs will be read correctly.
+    install_fallback_log_writer(filename);
 }
 
 std::string get_web_path(boost::optional<std::string> web_static_directory) {

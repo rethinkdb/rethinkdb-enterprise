@@ -18,7 +18,7 @@ TLS_with_init(auto_drainer_t *, global_audit_log_drainer, nullptr);
 TLS_with_init(int, audit_log_writer_block, 0);
 
 // We need to set this in command_line.cc
-logs_output_target_t * global_logfile_target;
+file_output_target_t * global_logfile_target;
 
 const std::string config_base_path = "audit/audit_config.json";
 const std::string logs_base_path = "audit/logs/";
@@ -165,6 +165,8 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
 void install_logfile_output_target(std::string filename) {
     global_logfile_target = new file_output_target_t(filename);
     global_logfile_target->install();
+    // We only want this target to save logs.
+    global_logfile_target->tags.push_back(log_type_t::log);
 }
 
 void thread_pool_audit_log_writer_t::install_on_thread(int i) {
@@ -271,7 +273,6 @@ void vaudit_log_internal(log_type_t type,
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
     std::string message = vstrprintf(format, args);
-#pragma GCC diagnostic pop
 
     counted_t<audit_log_message_t> log_msg =
         make_counted<audit_log_message_t>(level, type, message);
@@ -287,14 +288,18 @@ void vaudit_log_internal(log_type_t type,
             logERR("Failed to write audit log message.\n");
         }
     } else {
-        // We don't have the thread pool yet.
-        coro_t::spawn_now_dangerously([&] () {
+        // We don't have the thread pool yet, should only be startup logs.
+        guarantee(type == log_type_t::log);
+        //TODO fix thi
+        fprintf(stderr, format, args);
+        coro_t::spawn_sometime([log_msg] () {
                 intrusive_list_t<audit_log_message_node_t> temp_queue;
                 temp_queue.push_back(new audit_log_message_node_t(log_msg));
                 on_thread_t rethreader(global_logfile_target->home_thread());
                 global_logfile_target->write_internal(&temp_queue);
             });
     }
+#pragma GCC diagnostic pop
 }
 
 void audit_log_internal
