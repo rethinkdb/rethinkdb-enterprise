@@ -178,7 +178,7 @@ private:
     bool _enable_auditing;
 
     new_mutex_t write_mutex;
-    auto_drainer_t drainer;
+    cross_thread_auto_drainer_t drainer;
     DISABLE_COPYING(thread_pool_audit_log_writer_t);
 };
 

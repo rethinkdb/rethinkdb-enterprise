@@ -131,7 +131,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
     logfile->tags.push_back(log_type_t::log);
     logfile->install();
     priority_routing.push_back(counted_t<audit_log_output_target_t>(logfile));
-    file_targets.push_back(std::move(logfile));
 
     counted_t<syslog_output_target_t> syslog_target =
         make_counted<syslog_output_target_t>();
@@ -160,6 +159,16 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
     }
 }
 thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
+    call_on_thread(global_logfile_target->home_thread(),
+                   [&] () {
+                       for (auto it = priority_routing.begin();
+                            it != priority_routing.end();
+                            ++it) {
+                           if (it->get() == global_logfile_target) {
+                               priority_routing.erase(it);
+                           }
+                       }
+                   });
     pmap(
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::uninstall_on_thread, this, _1));
@@ -358,14 +367,11 @@ void vaudit_log_internal(log_type_t type,
     } else {
         // We don't have the thread pool yet, should only be startup logs.
         guarantee(type == log_type_t::log);
-        //TODO fix this
+        //TODO Check this logic
         fprintf(stderr, format, args);
-        coro_t::spawn_sometime([log_msg] () {
-                intrusive_list_t<audit_log_message_node_t> temp_queue;
-                temp_queue.push_back(new audit_log_message_node_t(log_msg));
-                on_thread_t rethreader(global_logfile_target->home_thread());
-                global_logfile_target->write_internal(&temp_queue);
-            });
+        intrusive_list_t<audit_log_message_node_t> temp_queue;
+        temp_queue.push_back(new audit_log_message_node_t(log_msg));
+        global_logfile_target->write_internal(&temp_queue);
     }
 #pragma GCC diagnostic pop
 }

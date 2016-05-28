@@ -494,7 +494,7 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         logERR("Unexpected exception in client handler: %s", ex.what());
     }
 
-    if (disconnected) {
+    if (authenticator && disconnected) {
         std::string username = authenticator->get_unauthenticated_username().to_string();
         auditINF(log_type_t::connection,
                  "%s disconnected from %s, connection id: %s\n",
@@ -504,13 +504,15 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
     }
 
     if (!error_message.empty()) {
-        std::string username = authenticator->get_unauthenticated_username().to_string();
-        auditINF(log_type_t::connection,
-                 "%s FAILED to connect from %s, connection id: %s, %s\n",
-                 (username == "") ? "A user" : username.c_str(),
-                 peer.to_string().c_str(),
-                 uuid_to_str(conn->get_uuid()).c_str(),
-                 error_message.c_str());
+        if (authenticator) {
+            std::string username = authenticator->get_unauthenticated_username().to_string();
+            auditINF(log_type_t::connection,
+                     "%s FAILED to connect from %s, connection id: %s, %s\n",
+                     (username == "") ? "A user" : username.c_str(),
+                     peer.to_string().c_str(),
+                     uuid_to_str(conn->get_uuid()).c_str(),
+                     error_message.c_str());
+        }
         try {
             if (version < 10) {
                 std::string error = "ERROR: " + error_message + "\n";

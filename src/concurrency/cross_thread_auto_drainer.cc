@@ -63,7 +63,10 @@ cross_thread_auto_drainer_t::lock_t::~lock_t() {
 void cross_thread_auto_drainer_t::drain() {
     draining = true;
     decref();
-    drained.wait_lazily_unordered();
+    call_on_thread(home_thread(),
+                   [&] () {
+                       drained.wait_lazily_unordered();
+                   });
 }
 
 void cross_thread_auto_drainer_t::incref() {
