@@ -83,7 +83,6 @@ protected:
     cross_thread_auto_drainer_t drainer;
 };
 
-// TODO: change format so log reader can read it.
 class file_output_target_t : public audit_log_output_target_t, public home_thread_mixin_t {
 public:
     file_output_target_t(std::string _filename);

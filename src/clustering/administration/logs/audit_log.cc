@@ -23,6 +23,15 @@ file_output_target_t * global_logfile_target;
 const std::string config_base_path = "audit/audit_config.json";
 const std::string logs_base_path = "audit/logs/";
 
+void log_error_once(std::string msg) {
+    counted_t<audit_log_message_t> log_msg =
+        make_counted<audit_log_message_t>(log_level_t::log_level_error,
+                                          log_type_t::log,
+                                          msg);
+    intrusive_list_t<audit_log_message_node_t> temp_queue;
+    temp_queue.push_back(new audit_log_message_node_t(log_msg));
+    global_logfile_target->write_internal(&temp_queue);
+}
 file_output_target_t::file_output_target_t(std::string server_name, std::string _filename) :
     audit_log_output_target_t(),
     filename(base_path_t(strprintf("%s%s_%s",
@@ -292,7 +301,9 @@ void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
                           it->tags.end(),
                           msg->type) != it->tags.end()) {
 
-                it->emplace_message(msg, false);
+                if (enable_auditing() || it.get() == global_logfile_target) {
+                    it->emplace_message(msg, false);
+                }
             }
         }
     }
@@ -354,7 +365,6 @@ void vaudit_log_internal(log_type_t type,
     counted_t<audit_log_message_t> log_msg =
         make_counted<audit_log_message_t>(level, type, message);
     thread_pool_audit_log_writer_t *writer = TLS_get_global_audit_log_writer();
-    // TODO: reimplement disabling auditing
     if (writer != nullptr) {
         auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
         int writer_block = TLS_get_audit_log_writer_block();
@@ -362,12 +372,11 @@ void vaudit_log_internal(log_type_t type,
 
             writer->write(log_msg);
         } else {
-            logERR("Failed to write audit log message.\n");
+            log_error_once("Failed to write audit log message.\n");
         }
     } else {
         // We don't have the thread pool yet, should only be startup logs.
         guarantee(type == log_type_t::log);
-        //TODO Check this logic
         fprintf(stderr, format, args);
         intrusive_list_t<audit_log_message_node_t> temp_queue;
         temp_queue.push_back(new audit_log_message_node_t(log_msg));
@@ -387,7 +396,8 @@ void audit_log_internal
 void file_output_target_t::write_internal(
     intrusive_list_t<audit_log_message_node_t> *local_queue) {
     if (fd.get() == INVALID_FD) {
-        logERR("Log file is invalid: %s", errno_string(get_errno()).c_str());
+        log_error_once(strprintf("Log file is invalid: %s",
+                                 errno_string(get_errno()).c_str()));
         return;
     }
 
@@ -404,7 +414,8 @@ void file_output_target_t::write_internal(
                                     std::move(msg_str).data(),
                                     msg_str.length());
         if (write_res != static_cast<ssize_t>(msg_str.length())) {
-            logERR("Cannot write to log file: %s", errno_string(get_errno()).c_str());
+            log_error_once(strprintf("Cannot write to log file: %s",
+                                     errno_string(get_errno()).c_str()));
         }
         delete msg;
     }
@@ -437,12 +448,6 @@ void console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
             thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg, true);
         UNUSED ssize_t write_res = ::write(fileno, msg_str.c_str(), msg_str.length());
 
-        int fsync_res = fsync(fileno);
-        if (fsync_res != 0 && !(get_errno() == EROFS || get_errno() == EINVAL ||
-                                get_errno() == ENOTSUP)) {
-            // TODO: something
-            ;;
-        }
         delete msg;
     }
 }
