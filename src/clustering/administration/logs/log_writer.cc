@@ -22,7 +22,6 @@
 #include "containers/scoped.hpp"
 #include "thread_local.hpp"
 
-
 RDB_IMPL_SERIALIZABLE_2_SINCE_v1_13(struct timespec, tv_sec, tv_nsec);
 RDB_IMPL_SERIALIZABLE_4_SINCE_v1_13(log_message_t, timestamp, uptime, level, message);
 
@@ -33,6 +32,9 @@ std::string format_log_level(log_level_t l) {
         case log_level_notice: return "notice";
         case log_level_warn: return "warn";
         case log_level_error: return "error";
+        case log_level_critical: return "critical";
+        case log_level_alert: return "alert";
+        case log_level_emergency: return "emergency";
         default: unreachable();
     }
 }
@@ -412,6 +414,9 @@ bool fallback_log_writer_t::write(const log_message_t &msg, std::string *error_o
         case log_level_debug:
         case log_level_warn:
         case log_level_error:
+        case log_level_critical:
+        case log_level_alert:
+        case log_level_emergency:
             write_stream = stderr;
             fileno = STDERR_FILENO;
             break;
@@ -438,7 +443,6 @@ bool fallback_log_writer_t::write(const log_message_t &msg, std::string *error_o
             error_out->assign("cannot write to stdout/stderr: " + errno_string(get_errno()));
             return false;
         }
-
 
 #ifdef _WIN32
         // WINDOWS TODO
@@ -674,11 +678,9 @@ void log_internal(const char *src_file, int src_line, log_level_t level, const c
 void vlog_internal(UNUSED const char *src_file, UNUSED int src_line, log_level_t level, const char *format, va_list args) {
     thread_pool_log_writer_t *writer;
     if ((writer = TLS_get_global_log_writer()) && TLS_get_log_writer_block() == 0) {
-        auto_drainer_t::lock_t lock(TLS_get_global_log_drainer());
+        // TODO: REALLY HACKY AT THE MOMENT
 
-        std::string message = vstrprintf(format, args);
-        coro_t::spawn_sometime(boost::bind(&log_coro, writer, level, message, lock));
-
+        vaudit_log_internal(log_type_t::log, level, format, args);
     } else {
         std::string message = vstrprintf(format, args);
 
