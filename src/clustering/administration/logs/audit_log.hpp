@@ -95,6 +95,16 @@ public:
     }
 
     bool install() {
+#ifdef _WIN32
+        HANDLE h = CreateFile(filename.path().c_str(), FILE_APPEND_DATA, 0, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        fd.reset(h);
+
+        if (fd.get() == INVALID_FD) {
+        throw std::runtime_error(strprintf("Failed to open log file '%s': %s",
+                                           logfile_name.c_str(),
+                                           winerr_string(GetLastError()).c_str()).c_str());
+        }
+#else
         int res;
         do {
             res = open(filename.path().c_str(), O_WRONLY|O_APPEND|O_CREAT, 0644);
@@ -107,6 +117,7 @@ public:
                    errno_string(errno).c_str());
             return false;
         }
+#endif
         // Get the absolute path for the log file, so it will still be valid if
         //  the working directory changes
         filename.make_absolute();

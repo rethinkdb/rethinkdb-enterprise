@@ -32,6 +32,7 @@ void log_error_once(std::string msg) {
     temp_queue.push_back(new audit_log_message_node_t(log_msg));
     global_logfile_target->write_internal(&temp_queue);
 }
+
 file_output_target_t::file_output_target_t(std::string server_name, std::string _filename) :
     audit_log_output_target_t(),
     filename(base_path_t(strprintf("%s%s_%s",
@@ -416,9 +417,22 @@ void file_output_target_t::write_internal(
         } else {
             msg_str = format_log_message(msg->msg, false) + '\n';
         }
+#ifdef _WIN32
+        DWORD bytes_written;
+        BOOL res = WriteFile(fd.get(),
+                             msg_str.data(),
+                             msg_str.length(),
+                             &bytes_written,
+                             nullptr);
+        if (!res) {
+            log_error_once(strprintf("cannot write to log file: " + winerr_string(GetLastError())));
+            return false;
+        }
+#else
         ssize_t write_res = ::write(fd.get(),
-                                    std::move(msg_str).data(),
+                                    msg_str.data(),
                                     msg_str.length());
+#endif
         if (write_res != static_cast<ssize_t>(msg_str.length())) {
             log_error_once(strprintf("Cannot write to log file: %s",
                                      errno_string(get_errno()).c_str()));
@@ -430,6 +444,15 @@ void file_output_target_t::write_internal(
 
 void console_output_target_t::write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) {
     while(auto msg = local_queue->head()) {
+#ifdef _MSC_VER
+        static int STDOUT_FILENO = -1;
+        static int STDERR_FILENO = -1;
+        if (STDOUT_FILENO == -1) {
+            STDOUT_FILENO = _open("conout$", _O_RDONLY, 0);
+            STDERR_FILENO = STDOUT_FILENO;
+        }
+#endif
+
         int fileno = -1;
         local_queue->pop_front();
         switch (msg->msg->level) {
@@ -452,7 +475,11 @@ void console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
         }
         std::string msg_str =
             thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg, true);
+#ifdef _WIN32
+        size_t write_res = fwrite(msg_str.data(), 1, console_formatted.length(), stderr);
+#else
         UNUSED ssize_t write_res = ::write(fileno, msg_str.c_str(), msg_str.length());
+#endif
         delete msg;
     }
 }
