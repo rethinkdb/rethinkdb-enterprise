@@ -57,12 +57,7 @@ void vaudit_log_internal(log_type_t type,
 #define logNTC(fmt, ...) audit_log_internal(log_type_t::log, log_level_notice, (fmt), ##__VA_ARGS__)
 #define logWRN(fmt, ...) audit_log_internal(log_type_t::log, log_level_warn, (fmt), ##__VA_ARGS__)
 #define logERR(fmt, ...) audit_log_internal(log_type_t::log, log_level_error, (fmt), ##__VA_ARGS__)
-/*
-#define logINF(fmt, ...) log_internal(__FILE__, __LINE__, log_level_info, (fmt), ##__VA_ARGS__)
-#define logNTC(fmt, ...) log_internal(__FILE__, __LINE__, log_level_notice, (fmt), ##__VA_ARGS__)
-#define logWRN(fmt, ...) log_internal(__FILE__, __LINE__, log_level_warn, (fmt), ##__VA_ARGS__)
-#define logERR(fmt, ...) log_internal(__FILE__, __LINE__, log_level_error, (fmt), ##__VA_ARGS__)
-*/
+
 #define vlogINF(fmt, args) vlog_internal(__FILE__, __LINE__, log_level_info, (fmt), (args))
 #define vlogNTC(fmt, args) vlog_internal(__FILE__, __LINE__, log_level_notice, (fmt), (args))
 #define vlogWRN(fmt, args) vlog_internal(__FILE__, __LINE__, log_level_warn, (fmt), (args))

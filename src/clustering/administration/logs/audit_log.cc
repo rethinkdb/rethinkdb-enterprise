@@ -453,12 +453,6 @@ void console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
         std::string msg_str =
             thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg, true);
         UNUSED ssize_t write_res = ::write(fileno, msg_str.c_str(), msg_str.length());
-        int fsync_res = fsync(fileno);
-        if (fsync_res != 0 && !(get_errno() == EROFS || get_errno() == EINVAL ||
-                                get_errno() == ENOTSUP)) {
-            // TODO: something
-            ;;
-        }
         delete msg;
     }
 }

@@ -66,7 +66,7 @@ void server_config_server_t::update_actual_cache_size(
     uint64_t actual_size;
     if (!static_cast<bool>(setting)) {
         actual_size = get_default_total_cache_size();
-        logINF("Automatically using cache size of %" PRIu64 " MB",
+        logINF("Automatically using cache size of %" PRIu64 " MB\n",
             actual_size / static_cast<uint64_t>(MEGABYTE));
     } else {
         if (*setting > get_max_total_cache_size()) {
