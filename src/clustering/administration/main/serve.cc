@@ -140,7 +140,7 @@ bool do_serve(io_backender_t *io_backender,
         }
 
 #ifndef NDEBUG
-        logNTC("Our server ID is %s", server_id.print().c_str());
+        logNTC("Our server ID is %s\n", server_id.print().c_str());
 #endif
 
         /* The `connectivity_cluster_t` maintains TCP connections to other servers in the

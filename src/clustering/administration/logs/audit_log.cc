@@ -66,6 +66,17 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
 
+    counted_t<file_output_target_t> logfile(global_logfile_target);
+    logfile->tags.push_back(log_type_t::log);
+    logfile->install();
+    priority_routing.push_back(counted_t<audit_log_output_target_t>(logfile));
+
+    counted_t<console_output_target_t> console_target =
+        make_counted<console_output_target_t>();
+    priority_routing.push_back(counted_t<console_output_target_t>(console_target));
+    console_target->min_severity = log_level_t::log_level_notice;
+    file_targets.push_back(std::move(console_target));
+
     // This is how rapidjson recommends doing this.
     char readBuffer[65536];
     FILE *fp = fopen(config_filename.path().c_str(), "r");
@@ -81,8 +92,8 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
 
     if (d.HasParseError()) {
         logERR("\nAudit Config file Error(offset %u): %s\n",
-                (unsigned)d.GetErrorOffset(),
-                GetParseError_En(d.GetParseError()));
+               (unsigned)d.GetErrorOffset(),
+               GetParseError_En(d.GetParseError()));
         logERR("Audit logging will be DISABLED.\n");
 
         // Disable auditing and exit
@@ -136,11 +147,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
         }
     }
 
-    counted_t<file_output_target_t> logfile(global_logfile_target);
-    logfile->tags.push_back(log_type_t::log);
-    logfile->install();
-    priority_routing.push_back(counted_t<audit_log_output_target_t>(logfile));
-
     counted_t<syslog_output_target_t> syslog_target =
         make_counted<syslog_output_target_t>();
     if (_enable_auditing && d.HasMember("syslog") && d["syslog"].IsObject()) {
@@ -152,16 +158,12 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(std::string serve
         file_targets.push_back(std::move(syslog_target));
     }
 
-    counted_t<console_output_target_t> console_target =
-        make_counted<console_output_target_t>();
-    priority_routing.push_back(counted_t<console_output_target_t>(console_target));
-    file_targets.push_back(std::move(console_target));
-
     if (_enable_auditing) {
         logNTC("Audit logging enabled.\n");
     } else {
         logWRN("Audit logging disabled\n");
     }
+
 
     if (fp != nullptr) {
         fclose(fp);
@@ -185,6 +187,7 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
 
 void install_logfile_output_target(std::string filename) {
     global_logfile_target = new file_output_target_t(filename);
+    global_logfile_target->respects_enabled_flag = false;
     global_logfile_target->install();
     // We only want this target to save logs.
     global_logfile_target->tags.push_back(log_type_t::log);
@@ -301,7 +304,8 @@ void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
                           it->tags.end(),
                           msg->type) != it->tags.end()) {
 
-                if (enable_auditing() || it.get() == global_logfile_target) {
+                if (enable_auditing() || !it->respects_enabled_flag) {
+
                     it->emplace_message(msg, false);
                 }
             }
@@ -377,7 +381,9 @@ void vaudit_log_internal(log_type_t type,
     } else {
         // We don't have the thread pool yet, should only be startup logs.
         guarantee(type == log_type_t::log);
-        fprintf(stderr, format, args);
+        UNUSED ssize_t write_res = ::write(STDOUT_FILENO,
+                                           message.c_str(),
+                                           message.length());
         intrusive_list_t<audit_log_message_node_t> temp_queue;
         temp_queue.push_back(new audit_log_message_node_t(log_msg));
         global_logfile_target->write_internal(&temp_queue);
@@ -447,7 +453,12 @@ void console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
         std::string msg_str =
             thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg, true);
         UNUSED ssize_t write_res = ::write(fileno, msg_str.c_str(), msg_str.length());
-
+        int fsync_res = fsync(fileno);
+        if (fsync_res != 0 && !(get_errno() == EROFS || get_errno() == EINVAL ||
+                                get_errno() == ENOTSUP)) {
+            // TODO: something
+            ;;
+        }
         delete msg;
     }
 }

@@ -61,7 +61,9 @@ RDB_DECLARE_SERIALIZABLE(audit_log_message_t);
 class audit_log_output_target_t : public slow_atomic_countable_t<audit_log_output_target_t> {
 public:
     friend class thread_pool_audit_log_writer_t;
-    audit_log_output_target_t() : min_severity(0), write_pump([&] (signal_t*) {flush();}) { }
+    audit_log_output_target_t() : respects_enabled_flag(true),
+                                  min_severity(0),
+                                  write_pump([&] (signal_t*) {flush();}) { }
 
     virtual ~audit_log_output_target_t() { }
 
@@ -71,6 +73,7 @@ public:
     void flush();
     void emplace_message(counted_t<audit_log_message_t> msg, bool ignore_capacity);
 
+    bool respects_enabled_flag;
     std::vector<log_type_t> tags;
     int min_severity;
 
@@ -144,7 +147,9 @@ private:
 
 class console_output_target_t : public audit_log_output_target_t {
 public:
-    console_output_target_t() : audit_log_output_target_t() { }
+    console_output_target_t() : audit_log_output_target_t() {
+        respects_enabled_flag = false;
+    }
 
     ~console_output_target_t() { }
 
