@@ -26,6 +26,8 @@ log_write_issue_tracker_t *log_write_issue_tracker;
 const std::string config_base_path = "audit/audit_config.json";
 const std::string logs_base_path = "audit/logs/";
 
+struct timespec audit_log_message_t::_uptime_reference;
+
 void report_success() {
     coro_t::spawn_on_thread([] () {
             log_write_issue_tracker->report_success();
@@ -40,7 +42,7 @@ void report_error(std::string msg) {
 }
 
 void log_error_once(std::string msg) {
-    fprintf(stderr, "log_error_once\n");
+    //fprintf(stderr, "log_error_once\n");
     counted_t<audit_log_message_t> log_msg =
         make_counted<audit_log_message_t>(log_level_t::log_level_error,
                                           log_type_t::log,
@@ -49,7 +51,7 @@ void log_error_once(std::string msg) {
     temp_queue.push_back(new audit_log_message_node_t(log_msg));
     //global_logfile_target->write_internal(&temp_queue);
     // This should never fail.
-    fprintf(stderr, "%s\n", msg.c_str());
+    //fprintf(stderr, "%s\n", msg.c_str());
     UNUSED bool res = global_console_target->write_internal(&temp_queue, nullptr);
 }
 
@@ -85,7 +87,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
     config_filename(config_base_path),
     _enable_auditing(true) {
 
-    fprintf(stderr, "thread_pool_audit_log_writer_t\n");
+    //fprintf(stderr, "thread_pool_audit_log_writer_t\n");
     log_write_issue_tracker = log_tracker;
 
     pmap(
@@ -208,7 +210,8 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
 }
 
 void install_logfile_output_target(std::string filename) {
-    fprintf(stderr, "install_logfile_output_target\n");
+    audit_log_message_t::set_uptime_reference();
+    //fprintf(stderr, "install_logfile_output_target\n");
     global_logfile_target = new file_output_target_t(filename);
     global_logfile_target->respects_enabled_flag = false;
     global_logfile_target->install();
@@ -227,7 +230,7 @@ void thread_pool_audit_log_writer_t::install_on_thread(int i) {
 }
 
 void thread_pool_audit_log_writer_t::uninstall_on_thread(int i) {
-    fprintf(stderr, "uninstall_on_thread %d\n", i);
+    //fprintf(stderr, "uninstall_on_thread %d\n", i);
     on_thread_t thread_switcher((threadnum_t(i)));
     guarantee(TLS_get_global_audit_log_writer() == this);
     TLS_set_global_audit_log_writer(nullptr);
@@ -332,7 +335,7 @@ void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
                           msg->type) != it->tags.end()) {
 
                 if (enable_auditing() || !it->respects_enabled_flag) {
-                    fprintf(stderr, "Message: %s", msg->message.c_str());
+                    //fprintf(stderr, "Message: %s", msg->message.c_str());
                     it->emplace_message(msg, false);
                 }
             }
@@ -342,15 +345,15 @@ void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
 
 void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> msg,
                                                 bool ignore_capacity) {
-    fprintf(stderr, "emplace_message\n");
+    //fprintf(stderr, "emplace_message\n");
     auto keepalive = drainer.lock();
     size_t msg_size = sizeof(msg->message);
     bool over_capacity;
     {
         spinlock_acq_t s_acq(&queue_mutex);
-        fprintf(stderr, "HERE\n");
+        //fprintf(stderr, "HERE\n");
         queue.push_back(new audit_log_message_node_t(msg));
-        fprintf(stderr, "end HERE\n");
+        //fprintf(stderr, "end HERE\n");
         queue_size += msg_size;
     }
     // Add messages to intrusive list unless the batch is full,
@@ -373,7 +376,7 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
                            write_pump.notify();
                        });
     }
-    fprintf(stderr, "end emplace_message\n");
+    //fprintf(stderr, "end emplace_message\n");
 }
 
 void audit_log_output_target_t::flush() {
@@ -400,7 +403,7 @@ void vaudit_log_internal(log_type_t type,
                          log_level_t level,
                          const char *format,
                          va_list args) {
-    fprintf(stderr, "vaudit_log_internal\n");
+    //fprintf(stderr, "vaudit_log_internal\n");
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
     std::string message = vstrprintf(format, args);
@@ -410,7 +413,6 @@ void vaudit_log_internal(log_type_t type,
     thread_pool_audit_log_writer_t *writer = TLS_get_global_audit_log_writer();
     if (writer != nullptr) {
         auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
-        // TODO delete this
         int writer_block = TLS_get_audit_log_writer_block();
         if (writer_block == 0) {
             writer->write(log_msg);
@@ -423,11 +425,11 @@ void vaudit_log_internal(log_type_t type,
         UNUSED ssize_t write_res = ::write(STDOUT_FILENO,
                                            message.c_str(),
                                            message.length());
-        // TODO:
-        //intrusive_list_t<audit_log_message_node_t> temp_queue;
-        //temp_queue.push_back(new audit_log_message_node_t(log_msg));
-        //std::string error_message;
-        //UNUSED bool res = global_logfile_target->write_internal(&temp_queue, &error_message);
+
+        intrusive_list_t<audit_log_message_node_t> temp_queue;
+        temp_queue.push_back(new audit_log_message_node_t(log_msg));
+        std::string error_message;
+        UNUSED bool res = global_logfile_target->write_internal(&temp_queue, &error_message);
     }
 #pragma GCC diagnostic pop
 }

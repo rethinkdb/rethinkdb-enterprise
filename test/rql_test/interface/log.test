@@ -33,6 +33,7 @@ with driver.Process(name="./the_server") as server:
     assert len(log) > 5
 
     entry = log[-1]
+    print "ENTRY:    ", entry
     assert "xyz" in entry["message"], pprint.pformat(entry)
     assert entry["level"] == "info", pprint.pformat(entry)
     assert 0 < entry["uptime"] < 120, pprint.pformat(entry)

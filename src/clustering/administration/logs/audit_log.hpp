@@ -16,6 +16,7 @@
 #include "containers/uuid.hpp"
 
 #include "logger.hpp"
+#include "time.hpp"
 #include "utils.hpp"
 
 const size_t AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT = 512;
@@ -25,10 +26,12 @@ void install_logfile_output_target(std::string filename);
 
 class audit_log_message_t : public slow_atomic_countable_t<audit_log_message_t> {
 public:
+    static struct timespec _uptime_reference;
+
     audit_log_message_t() { }
     explicit audit_log_message_t(std::string _message) :
         timestamp(clock_realtime()),
-        uptime(clock_monotonic()),
+        uptime(subtract_timespecs(clock_monotonic(), _uptime_reference)),
         message(std::move(_message))
     { }
 
@@ -36,13 +39,17 @@ public:
                         log_type_t _type,
                         std::string _message) :
         timestamp(clock_realtime()),
-        uptime(clock_monotonic()),
+        uptime(subtract_timespecs(clock_monotonic(), _uptime_reference)),
         type(_type),
         level(_level),
         message(_message) { }
 
+    static void set_uptime_reference() {
+        _uptime_reference = clock_monotonic();
+    }
     struct timespec timestamp;
     struct timespec uptime;
+
     log_type_t type;
     log_level_t level;
     std::string message;
@@ -67,9 +74,7 @@ public:
                                   min_severity(0),
                                   write_pump([&] (signal_t*) {flush();}) { }
 
-    virtual ~audit_log_output_target_t() {
-        fprintf(stderr, "    ~audit_log_output_target()\n");
-    }
+    virtual ~audit_log_output_target_t() { }
 
     virtual bool write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
                                 std::string *error_message) = 0;
