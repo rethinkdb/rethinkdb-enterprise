@@ -205,7 +205,8 @@ bool do_serve(io_backender_t *io_backender,
 
         thread_pool_audit_log_writer_t audit_writer(
             server_config_server->get_config()
-            ->get().config.name.c_str());
+            ->get().config.name.c_str(),
+            log_writer.get_log_write_issue_tracker());
 
         /* `server_config_client` is used to get a list of all connected servers and
         request information about their names and tags. It can also be used to change

@@ -9,6 +9,7 @@
 
 #include "arch/io/disk.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
+#include "clustering/administration/issues/log_write.hpp"
 #include "concurrency/new_mutex.hpp"
 #include "concurrency/cross_thread_auto_drainer.hpp"
 #include "containers/counted.hpp"
@@ -58,16 +59,20 @@ RDB_DECLARE_SERIALIZABLE(audit_log_message_t);
 // Handles output to a file, syslog, or other output target.
 // Should also handle locking for non thread-safe resources used for output.
 
-class audit_log_output_target_t : public slow_atomic_countable_t<audit_log_output_target_t> {
+class audit_log_output_target_t : public slow_atomic_countable_t<audit_log_output_target_t>,
+                                  public home_thread_mixin_t {
 public:
     friend class thread_pool_audit_log_writer_t;
     audit_log_output_target_t() : respects_enabled_flag(true),
                                   min_severity(0),
                                   write_pump([&] (signal_t*) {flush();}) { }
 
-    virtual ~audit_log_output_target_t() { }
+    virtual ~audit_log_output_target_t() {
+        fprintf(stderr, "    ~audit_log_output_target()\n");
+    }
 
-    virtual void write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) = 0;
+    virtual bool write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
+                                std::string *error_message) = 0;
 
     void write();
     void flush();
@@ -86,7 +91,7 @@ protected:
     cross_thread_auto_drainer_t drainer;
 };
 
-class file_output_target_t : public audit_log_output_target_t, public home_thread_mixin_t {
+class file_output_target_t : public audit_log_output_target_t {
 public:
     file_output_target_t(std::string _filename);
     file_output_target_t(std::string server_name, std::string _filename);
@@ -135,7 +140,8 @@ public:
         }
         return true;
     }
-    void write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) final;
+    bool write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
+                        std::string *error_out) final;
 private:
     base_path_t filename;
     scoped_fd_t fd;
@@ -153,7 +159,8 @@ public:
     }
 
 private:
-    void write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) final;
+    bool write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
+                        std::string *error_out) final;
 };
 
 class console_output_target_t : public audit_log_output_target_t {
@@ -164,8 +171,8 @@ public:
 
     ~console_output_target_t() { }
 
-private:
-    void write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue) final;
+    bool write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
+                        std::string *error_out) final;
 };
 
 void audit_log_internal(log_type_t type, log_level_t level, const char *format, ...)
@@ -174,13 +181,15 @@ void audit_log_internal(log_type_t type, log_level_t level, const char *format, 
 
 class thread_pool_audit_log_writer_t : public home_thread_mixin_t {
 public:
-    thread_pool_audit_log_writer_t(std::string server_name);
+    thread_pool_audit_log_writer_t(std::string server_name,
+                                   log_write_issue_tracker_t *log_tracker);
     ~thread_pool_audit_log_writer_t();
 
     static std::string format_audit_log_message(counted_t<audit_log_message_t> msg, bool for_console);
     void write(counted_t<audit_log_message_t> msg);
 
     bool enable_auditing() { return _enable_auditing; }
+
 private:
     void install_on_thread(int i);
     void uninstall_on_thread(int i);
