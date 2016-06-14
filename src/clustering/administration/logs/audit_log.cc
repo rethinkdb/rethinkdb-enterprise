@@ -245,7 +245,7 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
 
     bool ends_in_newline = msg->message.back() == '\n';
     if (!for_console) {
-        msg_string = strprintf("%s UTC %s [%s]: %s%s",
+        msg_string = strprintf("%s %s [%s]: %s%s",
                                format_time(msg->timestamp, local_or_utc_time_t::utc).c_str(),
                                format_log_level(msg->level).c_str(),
                                type_to_string[msg->type].c_str(),
@@ -269,7 +269,7 @@ std::string format_log_message(counted_t<audit_log_message_t> &m, bool for_conso
     std::string prepend;
     if (!for_console) {
         prepend = strprintf("%s %ld.%06llds %s: ",
-                            format_time(m->timestamp, local_or_utc_time_t::local).c_str(),
+                            format_time(m->timestamp, local_or_utc_time_t::utc).c_str(),
                             m->uptime.tv_sec,
                             m->uptime.tv_nsec / THOUSAND,
                             format_log_level(m->level).c_str());

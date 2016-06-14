@@ -182,21 +182,15 @@ void format_time(struct timespec time, printf_buffer_t *buf, local_or_utc_time_t
         guarantee_err(res1 == &t, "localtime_r() failed.");
 #endif
     }
-    int tz_seconds = t.tm_gmtoff / 60;
-    int tz_hours = tz_seconds / 60;
-    int tz_minutes = tz_seconds % 60;
     buf->appendf(
-        "%04d-%02d-%02dT%02d:%02d:%02d.%09ld%s%02d:%02d",
+        "%04d-%02d-%02dT%02d:%02d:%02d.%09ldZ",
         t.tm_year+1900,
         t.tm_mon+1,
         t.tm_mday,
         t.tm_hour,
         t.tm_min,
         t.tm_sec,
-        time.tv_nsec,
-        t.tm_gmtoff > 0 ? "+" : "",
-        tz_hours,
-        tz_minutes);
+        time.tv_nsec);
 }
 
 std::string format_time(struct timespec time, local_or_utc_time_t zone) {
@@ -209,33 +203,22 @@ bool parse_time(const std::string &str, local_or_utc_time_t zone,
                 struct timespec *out, std::string *errmsg_out) {
     struct tm t;
     struct timespec time;
-    char direction;
-    int tz_hours;
-    int tz_minutes;
     int res1 = sscanf(str.c_str(),
-        "%04d-%02d-%02dT%02d:%02d:%02d.%09ld%c%02d:%02d",
+        "%04d-%02d-%02dT%02d:%02d:%02d.%09ldZ",
         &t.tm_year,
         &t.tm_mon,
         &t.tm_mday,
         &t.tm_hour,
         &t.tm_min,
         &t.tm_sec,
-        &time.tv_nsec,
-        &direction,
-        &tz_hours,
-        &tz_minutes);
-    if (res1 != 10) {
+        &time.tv_nsec);
+    if (res1 != 7) {
         *errmsg_out = "badly formatted time";
         return false;
-    }
-    int tz_sec = 3600 * tz_hours + 60 * tz_minutes;
-    if (direction == '-') {
-        tz_sec = - tz_sec;
     }
     t.tm_year -= 1900;
     t.tm_mon -= 1;
     t.tm_isdst = -1;
-    t.tm_gmtoff = tz_sec;
     if (zone == local_or_utc_time_t::utc) {
         boost::posix_time::ptime as_ptime = boost::posix_time::ptime_from_tm(t);
         boost::posix_time::ptime epoch(boost::gregorian::date(1970, 1, 1));
