@@ -399,7 +399,7 @@ void initialize_logfile(const std::map<std::string, options::values_t> &opts,
         filename = dirpath.path() + "/log_file";
     }
 
-    install_logfile_output_target(filename);
+    install_logfile_output_target(dirpath.path(), filename);
     // TODO so logs will be read correctly.
     install_fallback_log_writer(filename);
 }
@@ -2089,7 +2089,7 @@ int main_rethinkdb_serve(int argc, char *argv[]) {
             return EXIT_FAILURE;
         }
 #endif
-
+		
         serve_info_t serve_info(std::move(joins),
                                 get_reql_http_proxy_option(opts),
                                 std::move(web_path),
@@ -2314,7 +2314,7 @@ int main_rethinkdb_porcelain(int argc, char *argv[]) {
         if (!parse_cores_option(opts, &num_workers)) {
             return EXIT_FAILURE;
         }
-
+		
         int max_concurrent_io_requests;
         if (!parse_io_threads_option(opts, &max_concurrent_io_requests)) {
             return EXIT_FAILURE;

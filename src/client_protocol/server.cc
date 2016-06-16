@@ -274,7 +274,7 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
     conn->enable_keepalive();
 
     ip_and_port_t peer;
-    UNUSED bool res = conn->getpeername(&peer);
+    bool peer_res = conn->getpeername(&peer);
 
     uint8_t version = 0;
     std::unique_ptr<auth::base_authenticator_t> authenticator;
@@ -444,6 +444,7 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
 
         ip_and_port_t client_addr_port(ip_address_t::any(AF_INET), port_t(0));
         UNUSED bool peer_res = conn->getpeername(&client_addr_port);
+		peer = client_addr_port;
 
         guarantee(authenticator != nullptr);
         ql::query_cache_t query_cache(
@@ -458,7 +459,7 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         auditINF(log_type_t::connection,
                  "%s connected from %s, connection id: %s\n",
                  authenticator->get_authenticated_username().to_string().c_str(),
-                 peer.to_string().c_str(),
+                 client_addr_port.to_string().c_str(),
                  uuid_to_str(conn->get_uuid()).c_str());
 
         connection_loop<json_protocol_t>(
@@ -496,11 +497,17 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
 
     if (authenticator && disconnected) {
         std::string username = authenticator->get_unauthenticated_username().to_string();
-        auditINF(log_type_t::connection,
-                 "%s disconnected from %s, connection id: %s\n",
-                 (username == "") ? "A user" : username.c_str(),
-                 peer.to_string().c_str(),
-                 uuid_to_str(conn->get_uuid()).c_str());
+		if (peer_res == false) {
+			auditINF(log_type_t::connection,
+				"%s disconnected from %s, connection id: %s\n",
+				(username == "") ? "A user" : username.c_str(),
+				peer.to_string().c_str(),
+				uuid_to_str(conn->get_uuid()).c_str());
+		} else {
+			auditINF(log_type_t::connection,
+				"Client disconnected, connection id: %s\n",
+				uuid_to_str(conn->get_uuid()).c_str());
+		}
     }
 
     if (!error_message.empty()) {

@@ -433,7 +433,7 @@ class Process(object):
         newPath = path # should always exist
         while os.path.exists(newPath):
             newPath = '%s_%s' % (os.path.join(path, name), ''.join(random.choice(string.ascii_lowercase) for i in range(extraLetters)))
-        os.mkdir(newPath)
+        os.makedirs(newPath)
         return newPath
     
     def subclass_init(self):
@@ -449,7 +449,7 @@ class Process(object):
         for i, option in enumerate(self.options):
             if option == '--directory' or option.startswith('--directory='):
                 raise ValueError('The --directory should not be provided in extra_options')
-        self.options += ['--directory', self.data_path]
+        self.options += ['--directory', "C:/cygwin64"+self.data_path]
         
         # add 'serve' before the rest of the options
         self.options.insert(0, 'serve')
@@ -464,7 +464,7 @@ class Process(object):
         if not os.path.exists(os.path.join(self.data_path, 'metadata')):
             self._console_file.write("Creating data directory at %s (%s)\n" % (self.data_path, datetime.datetime.now().isoformat()))
             self._console_file.flush()
-            command = self.command_prefix + [self.executable_path] + ['create', '--server-name', self._desired_name, '--directory', self.data_path, '--log-file', str(self.logfile_path)] + server_tags
+            command = self.command_prefix + [self.executable_path] + ['create', '--server-name', self._desired_name, '--directory', "C:/cygwin64"+self.data_path, '--log-file', "C:/cygwin64"+str(self.logfile_path)] + server_tags
             subprocess.check_call(command, stdout=self._console_file, stderr=subprocess.STDOUT)
     
     def __init__(self, cluster=None, name=None, console_output=None, executable_path=None, server_tags=None, command_prefix=None, extra_options=None, wait_until_ready=True):
@@ -597,7 +597,7 @@ class Process(object):
                 self.logfile_path = os.path.realpath(options[i][len('--log-file='):].strip('\'"'))
                 break
         else:
-            options += ['--log-file', str(self.logfile_path)]
+            options += ['--log-file', "C:/cygwin64"+str(self.logfile_path)]
         
         if not '--no-update-check' in options:
             options += ['--no-update-check'] # supress update checks/reporting in

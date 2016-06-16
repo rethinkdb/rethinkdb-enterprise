@@ -4,7 +4,8 @@
 #include "arch/runtime/runtime.hpp"
 
 cross_thread_auto_drainer_t::cross_thread_auto_drainer_t() :
-    refcount(1) { }
+	draining(false),
+	refcount(1) { }
 
 cross_thread_auto_drainer_t::~cross_thread_auto_drainer_t() {
     if (!draining) {

@@ -18,7 +18,7 @@ opts = vcoptparse.OptParser()
 scenario_common.prepare_option_parser_mode_flags(opts)
 opts['random-seed'] = vcoptparse.FloatFlag('--random-seed', random.random())
 opts['servers'] = vcoptparse.IntFlag('--servers', 1) # Number of servers in the cluster
-opts['duration'] = vcoptparse.IntFlag('--duration', 250) # Time to perform fuzzing in seconds
+opts['duration'] = vcoptparse.IntFlag('--duration', 5) # Time to perform fuzzing in seconds
 opts['progress'] = vcoptparse.BoolFlag('--progress', False) # Write messages every 10 seconds with the time remaining
 opts['threads'] = vcoptparse.IntFlag('--threads', 16) # Number of client threads to run (not counting changefeeds)
 opts['changefeeds'] = vcoptparse.BoolFlag('--changefeeds', False) # Whether or not to use changefeeds

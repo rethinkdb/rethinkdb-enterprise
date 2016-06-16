@@ -530,7 +530,7 @@ int remove_directory_helper(const char *path) {
     } else {
         res = DeleteFile(path);
     }
-    guarantee_winerr(res, "failed to remove: '%s': %s", path, winerr_string(GetLastError()).c_str());
+    //guarantee_winerr(res, "failed to remove: '%s': %s", path, winerr_string(GetLastError()).c_str());
     return 0;
 }
 

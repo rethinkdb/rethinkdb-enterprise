@@ -3,7 +3,12 @@
 #define CLUSTERING_ADMINISTRATION_LOGS_AUDIT_LOG_HPP_
 
 #include <stdio.h>
+
+#ifdef _WIN32
+#include <io.h>
+#else
 #include <syslog.h>
+#endif
 
 #include <string>
 
@@ -22,7 +27,7 @@
 const size_t AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT = 512;
 const size_t AUDIT_MESSAGE_QUEUE_SIZE_LIMIT = 256 * MEGABYTE;
 
-void install_logfile_output_target(std::string filename);
+void install_logfile_output_target(std::string dirpath, std::string filename);
 
 class audit_log_message_t : public slow_atomic_countable_t<audit_log_message_t> {
 public:
@@ -98,6 +103,8 @@ protected:
 
 class file_output_target_t : public audit_log_output_target_t {
 public:
+	static std::string logfilename;
+	static std::string dirpath;
     file_output_target_t(std::string _filename);
     file_output_target_t(std::string server_name, std::string _filename);
 
@@ -106,12 +113,12 @@ public:
 
     bool install() {
 #ifdef _WIN32
-        HANDLE h = CreateFile(filename.path().c_str(), FILE_APPEND_DATA, 0, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+      HANDLE h = CreateFile(filename.path().c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         fd.reset(h);
 
         if (fd.get() == INVALID_FD) {
         throw std::runtime_error(strprintf("Failed to open log file '%s': %s",
-                                           logfile_name.c_str(),
+                                           filename.path().c_str(),
                                            winerr_string(GetLastError()).c_str()).c_str());
         }
 #else
@@ -156,11 +163,18 @@ private:
 class syslog_output_target_t : public audit_log_output_target_t {
 public:
     syslog_output_target_t() : audit_log_output_target_t() {
+#ifdef _WIN32
+
+#else
         openlog("rethinkdb", LOG_PID, 0);
+#endif
     }
 
     ~syslog_output_target_t() {
+#ifdef _WIN32
+#else
         closelog();
+#endif
     }
 
 private:
