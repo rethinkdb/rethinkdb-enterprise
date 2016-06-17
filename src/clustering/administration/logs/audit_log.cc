@@ -573,8 +573,31 @@ bool console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
 bool syslog_output_target_t::write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
                                             UNUSED std::string *error_message) {
 #ifdef _WIN32
+	// This is ugly, windows.
 	while (auto msg = local_queue->head()) {
 		local_queue->pop_front();
+		LPCTSTR pInsertStrings[1] = { nullptr };
+
+		pInsertStrings[0] = msg->msg->message.c_str();
+		if (!ReportEvent(hEventLog, EVENTLOG_ERROR_TYPE, RETHINKDB_CATEGORY, MSG_ERROR, nullptr, 1, 0, pInsertStrings, nullptr)) {
+			logWRN("ReportEvent failed for Windows Event Log");
+			
+			LPVOID lpMsgBuf;
+			LPVOID lpDisplayBuf;
+			DWORD dw = GetLastError();
+
+			FormatMessage(
+				FORMAT_MESSAGE_ALLOCATE_BUFFER |
+				FORMAT_MESSAGE_FROM_SYSTEM |
+				FORMAT_MESSAGE_IGNORE_INSERTS,
+				NULL,
+				dw,
+				MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+				(LPTSTR)&lpMsgBuf,
+				0, NULL);
+
+			fprintf(stderr, "Failed: %s\n", (LPTSTR)lpMsgBuf);
+		}
 		delete msg;
 	}
 #else
