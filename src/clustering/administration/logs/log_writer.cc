@@ -154,7 +154,7 @@ log_message_t parse_log_message(const std::string &s) THROWS_ONLY(log_read_exc_t
     {
         std::string errmsg;
         if (!parse_time(std::string(start_timestamp, end_timestamp - start_timestamp),
-                        local_or_utc_time_t::local, &timestamp, &errmsg)) {
+                        local_or_utc_time_t::utc, &timestamp, &errmsg)) {
             throw log_read_exc_t(errmsg);
         }
     }

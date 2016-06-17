@@ -248,6 +248,7 @@ linux_tcp_conn_t::linux_tcp_conn_t(const ip_address_t &peer,
 linux_tcp_conn_t::linux_tcp_conn_t(fd_t s) :
        write_perfmon(nullptr),
        sock(s),
+       uuid(generate_uuid()),
        event_watcher(new event_watcher_t(sock.get(), this)),
        read_in_progress(false), write_in_progress(false),
        read_buffer(IO_BUFFER_SIZE),
@@ -843,12 +844,14 @@ void linux_tcp_conn_t::rethread(threadnum_t new_thread) {
 bool linux_tcp_conn_t::getpeername(ip_and_port_t *ip_and_port) {
     struct sockaddr_storage addr;
     socklen_t addr_len = sizeof(addr);
+	int blah;
 
     int res = ::getpeername(fd_to_socket(sock.get()), reinterpret_cast<sockaddr *>(&addr), &addr_len);
+	blah = WSAGetLastError();
     if (res == 0) {
         *ip_and_port = ip_and_port_t(reinterpret_cast<sockaddr *>(&addr));
         return true;
-    }
+	}
 
     return false;
 }
@@ -1549,6 +1552,8 @@ void linux_nonthrowing_tcp_listener_t::accept_loop_single(
             }
         } else {
             winsock_debugf("accepted %x from %x\n", new_sock, listening_sock);
+			int foo = setsockopt(fd_to_socket(new_sock), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, reinterpret_cast<char*>(&listening_sock), sizeof(SOCKET));
+			guarantee(foo == 0);
             coro_t::spawn_now_dangerously(std::bind(&linux_nonthrowing_tcp_listener_t::handle, this, new_sock));
             backoff.success();
         }

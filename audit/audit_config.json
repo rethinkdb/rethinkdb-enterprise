@@ -1,5 +1,5 @@
 {
-    "enable_auditing": false,
+    "enable_auditing": true,
     "files":
     [
         {

@@ -573,7 +573,10 @@ bool console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
 bool syslog_output_target_t::write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
                                             UNUSED std::string *error_message) {
 #ifdef _WIN32
-
+	while (auto msg = local_queue->head()) {
+		local_queue->pop_front();
+		delete msg;
+	}
 #else
     while(auto msg = local_queue->head()) {
         local_queue->pop_front();

@@ -45,7 +45,8 @@ if 'RDB_DRIVER_PORT' in os.environ:
 
 def checkSharedServer():
     if sharedServerDriverPort is not None:
-        conn = r.connect(host=sharedServerHost, port=sharedServerDriverPort)
+        #conn = r.connect(host=sharedServerHost, port=sharedServerDriverPort)
+        conn = r.connect("localhost", 28015)
         if 'test' not in r.db_list().run(conn):
             r.db_create('test').run(conn)
 
