@@ -844,7 +844,6 @@ void linux_tcp_conn_t::rethread(threadnum_t new_thread) {
 bool linux_tcp_conn_t::getpeername(ip_and_port_t *ip_and_port) {
     struct sockaddr_storage addr;
     socklen_t addr_len = sizeof(addr);
-	int blah;
 
     int res = ::getpeername(fd_to_socket(sock.get()), reinterpret_cast<sockaddr *>(&addr), &addr_len);
     if (res == 0) {
