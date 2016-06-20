@@ -604,17 +604,17 @@ syslog_output_target_t::~syslog_output_target_t() {
 bool syslog_output_target_t::write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
                                             UNUSED std::string *error_message) {
 #ifdef _WIN32
-	// This is ugly, windows.
 	while (auto msg = local_queue->head()) {
 		local_queue->pop_front();
 		LPCTSTR pInsertStrings[1] = { nullptr };
 
 		pInsertStrings[0] = msg->msg->message.c_str();
 		
-		wchar_t* const temp = new wchar_t[msg->msg->message.size()];
-		for (int i = 0; i < msg->msg->message.size(); ++i) {
-			temp[i] = msg->msg->message[i];
-		}
+		int buffer_size = MultiByteToWideChar(CP_UTF8, 0, msg->msg->message.c_str(), -1, nullptr, 0);
+		wchar_t* temp = new wchar_t[buffer_size];
+		// TODO: can this fail? Need to consult arcane windows API
+		MultiByteToWideChar(CP_UTF8, 0, msg->msg->message.c_str(), -1, temp, buffer_size);
+
 		switch (msg->msg->level) {
 		case log_level_info:
 		case log_level_notice:
