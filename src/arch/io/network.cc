@@ -847,7 +847,6 @@ bool linux_tcp_conn_t::getpeername(ip_and_port_t *ip_and_port) {
 	int blah;
 
     int res = ::getpeername(fd_to_socket(sock.get()), reinterpret_cast<sockaddr *>(&addr), &addr_len);
-	blah = WSAGetLastError();
     if (res == 0) {
         *ip_and_port = ip_and_port_t(reinterpret_cast<sockaddr *>(&addr));
         return true;

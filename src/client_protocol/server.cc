@@ -274,7 +274,7 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
     conn->enable_keepalive();
 
     ip_and_port_t peer;
-    bool peer_res = conn->getpeername(&peer);
+    UNUSED bool peer_res = conn->getpeername(&peer);
 
     uint8_t version = 0;
     std::unique_ptr<auth::base_authenticator_t> authenticator;
@@ -443,7 +443,6 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         }
 
         ip_and_port_t client_addr_port(ip_address_t::any(AF_INET), port_t(0));
-        UNUSED bool peer_res = conn->getpeername(&client_addr_port);
 
         guarantee(authenticator != nullptr);
         ql::query_cache_t query_cache(
