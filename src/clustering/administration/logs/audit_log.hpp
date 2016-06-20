@@ -4,17 +4,6 @@
 
 #include <stdio.h>
 
-#ifdef _WIN32
-
-// For Windows event log.
-#include <io.h>
-#include "RethinkDBEventProvider.h"
-#pragma comment(lib, "advapi32.lib")
-
-#else
-#include <syslog.h>
-#endif
-
 #include <string>
 
 #include "arch/io/disk.hpp"
@@ -167,28 +156,9 @@ private:
 
 class syslog_output_target_t : public audit_log_output_target_t {
 public:
-	syslog_output_target_t() : audit_log_output_target_t() {
+	syslog_output_target_t();
 
-#ifdef _WIN32
-		const char* PROVIDER_NAME = "RethinkDBEventProvider";
-		hEventLog = RegisterEventSource(NULL, PROVIDER_NAME);
-		if (hEventLog == nullptr) {
-			logWRN("Could not register event source for Windows Event Log.\n");
-		}
-#else
-        openlog("rethinkdb", LOG_PID, 0);
-#endif
-    }
-
-	~syslog_output_target_t() {
-#ifdef _WIN32
-		if (hEventLog) {
-			DeregisterEventSource(hEventLog);
-		}
-#else
-        closelog();
-#endif
-    }
+	~syslog_output_target_t();
 
 private:
     bool write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
