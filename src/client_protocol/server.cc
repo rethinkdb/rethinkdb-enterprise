@@ -443,6 +443,7 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         }
 
         ip_and_port_t client_addr_port(ip_address_t::any(AF_INET), port_t(0));
+		UNUSED bool client_addr_res = conn->getpeername(&client_addr_port);
 
         guarantee(authenticator != nullptr);
         ql::query_cache_t query_cache(
