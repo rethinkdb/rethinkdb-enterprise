@@ -215,7 +215,7 @@ Remarks:
 #endif
 #endif // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
 //+
-// Provider RethinkDB-EventProvider Event Count 2
+// Provider RethinkDB Event Count 7
 //+
 EXTERN_C __declspec(selectany) const GUID RethinkDB = {0x4b93b02d, 0xeb1e, 0x4e76, {0x95, 0xa0, 0xe5, 0xb4, 0xf8, 0xce, 0xe9, 0x02}};
 
@@ -247,6 +247,16 @@ EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogNotice = {0x0, 0x0
 #define AuditLogNotice_value 0x0
 EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogError = {0x1, 0x0, 0x10, 0x14, 0x0, 0x0, 0x8000800000000000};
 #define AuditLogError_value 0x1
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogInfo = {0x3, 0x0, 0x10, 0x11, 0x0, 0x0, 0x8000800000000000};
+#define AuditLogInfo_value 0x3
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogWarn = {0x4, 0x0, 0x10, 0x13, 0x0, 0x0, 0x8000800000000000};
+#define AuditLogWarn_value 0x4
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogCritical = {0x5, 0x0, 0x10, 0x15, 0x0, 0x0, 0x8000800000000000};
+#define AuditLogCritical_value 0x5
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogAlert = {0x6, 0x0, 0x10, 0x16, 0x0, 0x0, 0x8000800000000000};
+#define AuditLogAlert_value 0x6
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogEmergency = {0x7, 0x0, 0x10, 0x17, 0x0, 0x0, 0x8000800000000000};
+#define AuditLogEmergency_value 0x7
 
 //
 // Note on Generate Code from Manifest Windows Vista and above
@@ -275,12 +285,12 @@ EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogError = {0x1, 0x0,
 // Event Enablement Bits
 //
 
-EXTERN_C __declspec(selectany) DECLSPEC_CACHEALIGN ULONG RethinkDB_EventProviderEnableBits[1];
-EXTERN_C __declspec(selectany) const ULONGLONG RethinkDB_EventProviderKeywords[2] = {0x8000000000000000, 0x8000800000000000};
-EXTERN_C __declspec(selectany) const UCHAR RethinkDB_EventProviderLevels[2] = {18, 20};
-EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT RethinkDB_Context = {0, 0, 0, 0, 0, 0, 0, 0, 2, RethinkDB_EventProviderEnableBits, RethinkDB_EventProviderKeywords, RethinkDB_EventProviderLevels};
+EXTERN_C __declspec(selectany) DECLSPEC_CACHEALIGN ULONG RethinkDBEnableBits[1];
+EXTERN_C __declspec(selectany) const ULONGLONG RethinkDBKeywords[7] = {0x8000000000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000};
+EXTERN_C __declspec(selectany) const UCHAR RethinkDBLevels[7] = {18, 20, 17, 19, 21, 22, 23};
+EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT RethinkDB_Context = {0, 0, 0, 0, 0, 0, 0, 0, 7, RethinkDBEnableBits, RethinkDBKeywords, RethinkDBLevels};
 
-EXTERN_C __declspec(selectany) REGHANDLE RethinkDB_EventProviderHandle = (REGHANDLE)0;
+EXTERN_C __declspec(selectany) REGHANDLE RethinkDBHandle = (REGHANDLE)0;
 
 #if !defined(McGenEventRegisterUnregister)
 #define McGenEventRegisterUnregister
@@ -364,43 +374,113 @@ Remarks:
 //
 // Register with ETW Vista +
 //
-#ifndef EventRegisterRethinkDB_EventProvider
-#define EventRegisterRethinkDB_EventProvider() McGenEventRegister(&RethinkDB, McGenControlCallbackV2, &RethinkDB_Context, &RethinkDB_EventProviderHandle) 
+#ifndef EventRegisterRethinkDB
+#define EventRegisterRethinkDB() McGenEventRegister(&RethinkDB, McGenControlCallbackV2, &RethinkDB_Context, &RethinkDBHandle) 
 #endif
 
 //
 // UnRegister with ETW
 //
-#ifndef EventUnregisterRethinkDB_EventProvider
-#define EventUnregisterRethinkDB_EventProvider() McGenEventUnregister(&RethinkDB_EventProviderHandle) 
+#ifndef EventUnregisterRethinkDB
+#define EventUnregisterRethinkDB() McGenEventUnregister(&RethinkDBHandle) 
 #endif
 
 //
 // Enablement check macro for AuditLogNotice
 //
 
-#define EventEnabledAuditLogNotice() ((RethinkDB_EventProviderEnableBits[0] & 0x00000001) != 0)
+#define EventEnabledAuditLogNotice() ((RethinkDBEnableBits[0] & 0x00000001) != 0)
 
 //
 // Event Macro for AuditLogNotice
 //
 #define EventWriteAuditLogNotice(message)\
         EventEnabledAuditLogNotice() ?\
-        Template_z(RethinkDB_EventProviderHandle, &AuditLogNotice, message)\
+        Template_z(RethinkDBHandle, &AuditLogNotice, message)\
         : ERROR_SUCCESS\
 
 //
 // Enablement check macro for AuditLogError
 //
 
-#define EventEnabledAuditLogError() ((RethinkDB_EventProviderEnableBits[0] & 0x00000002) != 0)
+#define EventEnabledAuditLogError() ((RethinkDBEnableBits[0] & 0x00000002) != 0)
 
 //
 // Event Macro for AuditLogError
 //
 #define EventWriteAuditLogError(message)\
         EventEnabledAuditLogError() ?\
-        Template_z(RethinkDB_EventProviderHandle, &AuditLogError, message)\
+        Template_z(RethinkDBHandle, &AuditLogError, message)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for AuditLogInfo
+//
+
+#define EventEnabledAuditLogInfo() ((RethinkDBEnableBits[0] & 0x00000004) != 0)
+
+//
+// Event Macro for AuditLogInfo
+//
+#define EventWriteAuditLogInfo(message)\
+        EventEnabledAuditLogInfo() ?\
+        Template_z(RethinkDBHandle, &AuditLogInfo, message)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for AuditLogWarn
+//
+
+#define EventEnabledAuditLogWarn() ((RethinkDBEnableBits[0] & 0x00000008) != 0)
+
+//
+// Event Macro for AuditLogWarn
+//
+#define EventWriteAuditLogWarn(message)\
+        EventEnabledAuditLogWarn() ?\
+        Template_z(RethinkDBHandle, &AuditLogWarn, message)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for AuditLogCritical
+//
+
+#define EventEnabledAuditLogCritical() ((RethinkDBEnableBits[0] & 0x00000010) != 0)
+
+//
+// Event Macro for AuditLogCritical
+//
+#define EventWriteAuditLogCritical(message)\
+        EventEnabledAuditLogCritical() ?\
+        Template_z(RethinkDBHandle, &AuditLogCritical, message)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for AuditLogAlert
+//
+
+#define EventEnabledAuditLogAlert() ((RethinkDBEnableBits[0] & 0x00000020) != 0)
+
+//
+// Event Macro for AuditLogAlert
+//
+#define EventWriteAuditLogAlert(message)\
+        EventEnabledAuditLogAlert() ?\
+        Template_z(RethinkDBHandle, &AuditLogAlert, message)\
+        : ERROR_SUCCESS\
+
+//
+// Enablement check macro for AuditLogEmergency
+//
+
+#define EventEnabledAuditLogEmergency() ((RethinkDBEnableBits[0] & 0x00000040) != 0)
+
+//
+// Event Macro for AuditLogEmergency
+//
+#define EventWriteAuditLogEmergency(message)\
+        EventEnabledAuditLogEmergency() ?\
+        Template_z(RethinkDBHandle, &AuditLogEmergency, message)\
         : ERROR_SUCCESS\
 
 #endif // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
@@ -447,3 +527,8 @@ Template_z(
 
 #define MSG_RethinkDB_EventProvider_event_0_message 0xB0000000L
 #define MSG_RethinkDB_EventProvider_event_1_message 0xB0000001L
+#define MSG_RethinkDB_event_3_message        0xB0000003L
+#define MSG_RethinkDB_event_4_message        0xB0000004L
+#define MSG_RethinkDB_event_5_message        0xB0000005L
+#define MSG_RethinkDB_event_6_message        0xB0000006L
+#define MSG_RethinkDB_event_7_message        0xB0000007L

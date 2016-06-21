@@ -585,7 +585,7 @@ bool console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
 syslog_output_target_t::syslog_output_target_t() : audit_log_output_target_t() {
 
 #ifdef _WIN32
-		EventRegisterRethinkDB_EventProvider();
+		EventRegisterRethinkDB();
 #else
 		openlog("rethinkdb", LOG_PID, 0);
 #endif
@@ -594,7 +594,6 @@ syslog_output_target_t::syslog_output_target_t() : audit_log_output_target_t() {
 syslog_output_target_t::~syslog_output_target_t() {
 #ifdef _WIN32
 	if (hEventLog) {
-		EventUnregisterRethinkDB_EventProvider();
 	}
 #else
 	closelog();
@@ -616,17 +615,27 @@ bool syslog_output_target_t::write_internal(intrusive_list_t<audit_log_message_n
 		MultiByteToWideChar(CP_UTF8, 0, msg->msg->message.c_str(), -1, temp, buffer_size);
 
 		switch (msg->msg->level) {
-		case log_level_info:
-		case log_level_notice:
 		case log_level_debug:
-		case log_level_warn:
+		case log_level_info:
+			EventWriteAuditLogInfo(temp);
+			break;
+		case log_level_notice:
 			EventWriteAuditLogNotice(temp);
 			break;
+		case log_level_warn:
+			EventWriteAuditLogWarn(temp);
+			break;
 		case log_level_error:
-		case log_level_critical:
-		case log_level_alert:
-		case log_level_emergency:
 			EventWriteAuditLogError(temp);
+			break;
+		case log_level_critical:
+			EventWriteAuditLogCritical(temp);
+			break;
+		case log_level_alert:
+			EventWriteAuditLogAlert(temp);
+			break;
+		case log_level_emergency:
+			EventWriteAuditLogEmergency(temp);
 		default:
 			unreachable();
 		}
