@@ -434,18 +434,11 @@ void vaudit_log_internal(log_type_t type,
             log_error_once("Failed to write audit log message.\n");
         }
     } else {
-		/*
-        // We don't have the thread pool yet, should only be startup logs.
         guarantee(type == log_type_t::log);
-        UNUSED ssize_t write_res = ::write(STDOUT_FILENO,
-                                           message.c_str(),
-                                           message.length());
 
-        intrusive_list_t<audit_log_message_node_t> temp_queue;
-        temp_queue.push_back(new audit_log_message_node_t(log_msg));
-        std::string error_message;
-        UNUSED bool res = global_logfile_target->write_internal(&temp_queue, &error_message);
-		*/
+		// TODO, use old logging
+		// Don't have any targets until thread pool starts up
+		fprintf(stderr, "%s\n", message.c_str());
     }
 #ifndef _WIN32    
 #pragma GCC diagnostic pop
