@@ -322,7 +322,7 @@ void fallback_log_writer_t::install(const std::string &logfile_name) {
     filename = base_path_t(logfile_name);
 
 #ifdef _WIN32
-    HANDLE h = CreateFile(filename.path().c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    HANDLE h = CreateFile(filename.path().c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     fd.reset(h);
 
     if (fd.get() == INVALID_FD) {
@@ -676,14 +676,8 @@ void log_internal(const char *src_file, int src_line, log_level_t level, const c
 }
 
 void vlog_internal(UNUSED const char *src_file, UNUSED int src_line, log_level_t level, const char *format, va_list args) {
-    thread_pool_log_writer_t *writer;
-    if ((writer = TLS_get_global_log_writer()) && TLS_get_log_writer_block() == 0) {
-        vaudit_log_internal(log_type_t::log, level, format, args);
-    } else {
-        std::string message = vstrprintf(format, args);
-
-        fallback_log_writer.initiate_write(level, message);
-    }
+	std::string message = vstrprintf(format, args);
+	fallback_log_writer.initiate_write(level, message);
 }
 
 thread_log_writer_disabler_t::thread_log_writer_disabler_t() {

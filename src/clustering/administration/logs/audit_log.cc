@@ -434,11 +434,14 @@ void vaudit_log_internal(log_type_t type,
             log_error_once("Failed to write audit log message.\n");
         }
     } else {
-        guarantee(type == log_type_t::log);
+		if (type == log_type_t::log) {
+			// These should be startup messages, forward to fallback_log_writer.
+			vlog_internal(nullptr, 0, level, format, args);
+		} else {
+			// These messages shouldn't usually happen. Forward to console only.
+			fprintf(stderr, "%s\n", message.c_str());
+		}
 
-		// TODO, use old logging
-		// Don't have any targets until thread pool starts up
-		fprintf(stderr, "%s\n", message.c_str());
     }
 #ifndef _WIN32    
 #pragma GCC diagnostic pop
