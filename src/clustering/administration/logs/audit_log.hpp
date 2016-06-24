@@ -56,7 +56,7 @@ public:
 
 class audit_log_message_node_t : public intrusive_list_node_t<audit_log_message_node_t> {
 public:
-    audit_log_message_node_t(counted_t<audit_log_message_t> _msg) : msg(_msg) { }
+    explicit audit_log_message_node_t(counted_t<audit_log_message_t> _msg) : msg(_msg) { }
     counted_t<audit_log_message_t> msg;
 };
 
@@ -97,13 +97,12 @@ protected:
 
 class file_output_target_t : public audit_log_output_target_t {
 public:
-	static std::string logfilename;
-	static std::string dirpath;
-    file_output_target_t(std::string _filename);
+    static std::string logfilename;
+    static std::string dirpath;
+    explicit file_output_target_t(std::string _filename);
     file_output_target_t(std::string server_name, std::string _filename);
 
-    virtual ~file_output_target_t() final {
-    }
+    ~file_output_target_t() final { }
 
     bool install() {
 #ifdef _WIN32

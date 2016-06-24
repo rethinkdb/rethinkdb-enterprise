@@ -2,9 +2,19 @@
 
 #include "clustering/administration/logs/audit_log.hpp"
 
+#ifdef _WIN32
+// For Windows event log.
+#include <io.h>
+#include <evntprov.h>
+#include <conio.h>
+#else
+#include <syslog.h>
+#endif
+
+#include <sys/stat.h>
+
 #include "errors.hpp"
 #include <boost/bind.hpp>
-#include <sys/stat.h>
 
 #include "arch/runtime/thread_pool.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
@@ -14,15 +24,7 @@
 #include "thread_local.hpp"
 
 #ifdef _WIN32
-
-// For Windows event log.
-#include <io.h>
-#include <evntprov.h>
-#include <conio.h>
 #include "RethinkDBAuditManifest.h"
-
-#else
-#include <syslog.h>
 #endif
 
 TLS_with_init(thread_pool_audit_log_writer_t *, global_audit_log_writer, nullptr);
@@ -269,7 +271,7 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
     return msg_string;
 }
 
-std::string format_log_message(counted_t<audit_log_message_t> &m, bool for_console) {
+std::string format_log_message(const counted_t<audit_log_message_t> &m, bool for_console) {
     // never write an info level message to console
     guarantee(!(for_console && m->level == log_level_info));
 

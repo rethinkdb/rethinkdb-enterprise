@@ -399,8 +399,10 @@ void initialize_logfile(const std::map<std::string, options::values_t> &opts,
         filename = dirpath.path() + "/log_file";
     }
 
+    // This installs the audit log's output target for the rethinkdb log_file.
     install_logfile_output_target(dirpath.path(), filename);
-    // TODO so logs will be read correctly.
+    // This installs the old logging system on the same file, to use until
+    // the thread pool starts up.
     install_fallback_log_writer(filename);
 }
 
@@ -1141,7 +1143,7 @@ void run_rethinkdb_serve(const base_path_t &base_path,
                          const cluster_semilattice_metadata_t *cluster_metadata,
                          directory_lock_t *data_directory_lock,
                          bool *const result_out) {
-    logNTC("Running %s...\n", "Hi!");
+    logNTC("Running %s...\n", RETHINKDB_VERSION_STR);
 #ifdef _WIN32
     logNTC("Running on %s", windows_version_string().c_str());
 #else

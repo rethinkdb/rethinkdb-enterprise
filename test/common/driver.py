@@ -93,7 +93,7 @@ class Metacluster(object):
             utils.cleanupPathAtExit(self.dbs_path)
         else:
             if not os.path.exists(output_folder):
-                os.makedirs(output_folder)
+                os.mkdir(output_folder)
             
             if os.path.isdir(output_folder):
                 self.dbs_path = os.path.realpath(output_folder)

@@ -2,10 +2,10 @@
 #ifndef CONCURRENCY_CROSS_THREAD_AUTO_DRAINER_HPP_
 #define CONCURRENCY_CROSS_THREAD_AUTO_DRAINER_HPP_
 
+#include <atomic>
+
 #include "concurrency/cond_var.hpp"
 #include "threading.hpp"
-
-#include <atomic>
 
 class cross_thread_auto_drainer_t : public home_thread_mixin_t {
 public:
