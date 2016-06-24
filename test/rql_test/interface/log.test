@@ -51,16 +51,12 @@ with driver.Process(name="./the_server") as server:
     assert len(log) > 5
 
     entry = log[-1]
-    print "ENTRY:    ", entry
     assert "xyz" in entry["message"], pprint.pformat(entry)
     assert entry["level"] == "info", pprint.pformat(entry)
     assert 0 < entry["uptime"] < 120, pprint.pformat(entry)
     assert entry["server"] in ["the_server", "xyz"], pprint.pformat(entry)
     now = datetime.datetime.now(utc)
     timestamp = entry["timestamp"]
-    print now
-    print timestamp
-    print timestamp <= now
     assert timestamp <= now, pprint.pformat(entry)
     assert timestamp >= now - datetime.timedelta(minutes = 1), pprint.pformat(entry)
 

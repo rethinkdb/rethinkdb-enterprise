@@ -399,8 +399,10 @@ void initialize_logfile(const std::map<std::string, options::values_t> &opts,
         filename = dirpath.path() + "/log_file";
     }
 
+    // This installs the audit log's output target for the rethinkdb log_file.
     install_logfile_output_target(dirpath.path(), filename);
-    // TODO so logs will be read correctly.
+    // This installs the old logging system on the same file, to use until
+    // the thread pool starts up.
     install_fallback_log_writer(filename);
 }
 

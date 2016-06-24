@@ -22,7 +22,6 @@
 #include "containers/scoped.hpp"
 #include "thread_local.hpp"
 
-RDB_IMPL_SERIALIZABLE_2_SINCE_v1_13(struct timespec, tv_sec, tv_nsec);
 RDB_IMPL_SERIALIZABLE_4_SINCE_v1_13(log_message_t, timestamp, uptime, level, message);
 
 // `struct timestamp` has platform-dependent integers, which is not good for
@@ -327,6 +326,7 @@ public:
     friend class thread_pool_log_writer_t;
 
     log_message_t assemble_log_message(log_level_t level, const std::string &m);
+    void initiate_write(log_level_t level, const std::string &message);
 
 private:
     friend void log_coro(thread_pool_log_writer_t *writer, log_level_t level, const std::string &message, auto_drainer_t::lock_t);
@@ -334,7 +334,6 @@ private:
     friend void vlog_internal(const char *src_file, int src_line, log_level_t level, const char *format, va_list args);
 
     bool write(const log_message_t &msg, std::string *error_out);
-    void initiate_write(log_level_t level, const std::string &message);
     base_path_t filename;
     struct timespec uptime_reference;
     struct timespec last_msg_timestamp;
@@ -729,8 +728,12 @@ void log_internal(const char *src_file, int src_line, log_level_t level, const c
 }
 
 void vlog_internal(UNUSED const char *src_file, UNUSED int src_line, log_level_t level, const char *format, va_list args) {
-	std::string message = vstrprintf(format, args);
-	fallback_log_writer.initiate_write(level, message);
+    std::string message = vstrprintf(format, args);
+    fallback_log_writer.initiate_write(level, message);
+}
+
+void fallback_log_message(log_level_t level, const std::string &message) {
+    fallback_log_writer.initiate_write(level, message);
 }
 
 thread_log_writer_disabler_t::thread_log_writer_disabler_t() {

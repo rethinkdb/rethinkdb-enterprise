@@ -2,9 +2,19 @@
 
 #include "clustering/administration/logs/audit_log.hpp"
 
+#ifdef _WIN32
+// For Windows event log.
+#include <io.h>
+#include <evntprov.h>
+#include <conio.h>
+#else
+#include <syslog.h>
+#endif
+
+#include <sys/stat.h>
+
 #include "errors.hpp"
 #include <boost/bind.hpp>
-#include <sys/stat.h>
 
 #include "arch/runtime/thread_pool.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
@@ -14,15 +24,7 @@
 #include "thread_local.hpp"
 
 #ifdef _WIN32
-
-// For Windows event log.
-#include <io.h>
-#include <evntprov.h>
-#include <conio.h>
 #include "RethinkDBAuditManifest.h"
-
-#else
-#include <syslog.h>
 #endif
 
 TLS_with_init(thread_pool_audit_log_writer_t *, global_audit_log_writer, nullptr);
@@ -269,7 +271,7 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
     return msg_string;
 }
 
-std::string format_log_message(counted_t<audit_log_message_t> &m, bool for_console) {
+std::string format_log_message(const counted_t<audit_log_message_t> &m, bool for_console) {
     // never write an info level message to console
     guarantee(!(for_console && m->level == log_level_info));
 
@@ -408,19 +410,11 @@ void vaudit_log_internal(log_type_t type,
                          log_level_t level,
                          const char *format,
                          va_list args) {
-#ifdef _MSC_VER
-    static int STDOUT_FILENO = -1;
-    static int STDERR_FILENO = -1;
-    if (STDOUT_FILENO == -1) {
-        STDOUT_FILENO = _open("conout$", _O_RDONLY, 0);
-        STDERR_FILENO = STDOUT_FILENO;
-    }
-#endif
 #ifndef _WIN32
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
-   std::string message = vstrprintf(format, args);
+    std::string message = vstrprintf(format, args);
 
     counted_t<audit_log_message_t> log_msg =
         make_counted<audit_log_message_t>(level, type, message);
@@ -434,16 +428,15 @@ void vaudit_log_internal(log_type_t type,
             log_error_once("Failed to write audit log message.\n");
         }
     } else {
-		if (type == log_type_t::log) {
-			// These should be startup messages, forward to fallback_log_writer.
-			vlog_internal(nullptr, 0, level, format, args);
-		} else {
-			// These messages shouldn't usually happen. Forward to console only.
-			fprintf(stderr, "%s\n", message.c_str());
-		}
-
+        if (type == log_type_t::log) {
+            // These should be startup messages, forward to fallback_log_writer.
+            fallback_log_message(level, message);
+        } else {
+            // These messages shouldn't usually happen. Forward to console only.
+            fprintf(stderr, "%s\n", message.c_str());
+        }
     }
-#ifndef _WIN32    
+#ifndef _WIN32
 #pragma GCC diagnostic pop
 #endif
 }
