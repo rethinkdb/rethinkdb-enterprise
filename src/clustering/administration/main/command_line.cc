@@ -1141,7 +1141,7 @@ void run_rethinkdb_serve(const base_path_t &base_path,
                          const cluster_semilattice_metadata_t *cluster_metadata,
                          directory_lock_t *data_directory_lock,
                          bool *const result_out) {
-    logNTC("Running %s...\n", RETHINKDB_VERSION_STR);
+    logNTC("Running %s...\n", "Hi!");
 #ifdef _WIN32
     logNTC("Running on %s", windows_version_string().c_str());
 #else

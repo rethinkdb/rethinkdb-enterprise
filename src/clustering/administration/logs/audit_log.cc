@@ -408,19 +408,11 @@ void vaudit_log_internal(log_type_t type,
                          log_level_t level,
                          const char *format,
                          va_list args) {
-#ifdef _MSC_VER
-    static int STDOUT_FILENO = -1;
-    static int STDERR_FILENO = -1;
-    if (STDOUT_FILENO == -1) {
-        STDOUT_FILENO = _open("conout$", _O_RDONLY, 0);
-        STDERR_FILENO = STDOUT_FILENO;
-    }
-#endif
 #ifndef _WIN32
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #endif
-   std::string message = vstrprintf(format, args);
+    std::string message = vstrprintf(format, args);
 
     counted_t<audit_log_message_t> log_msg =
         make_counted<audit_log_message_t>(level, type, message);
@@ -434,16 +426,15 @@ void vaudit_log_internal(log_type_t type,
             log_error_once("Failed to write audit log message.\n");
         }
     } else {
-		if (type == log_type_t::log) {
-			// These should be startup messages, forward to fallback_log_writer.
-			vlog_internal(nullptr, 0, level, format, args);
-		} else {
-			// These messages shouldn't usually happen. Forward to console only.
-			fprintf(stderr, "%s\n", message.c_str());
-		}
-
+        if (type == log_type_t::log) {
+            // These should be startup messages, forward to fallback_log_writer.
+            fallback_log_message(level, message);
+        } else {
+            // These messages shouldn't usually happen. Forward to console only.
+            fprintf(stderr, "%s\n", message.c_str());
+        }
     }
-#ifndef _WIN32    
+#ifndef _WIN32
 #pragma GCC diagnostic pop
 #endif
 }
