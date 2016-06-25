@@ -18,10 +18,16 @@
 #include "time.hpp"
 #include "utils.hpp"
 
+#ifdef _WIN32
+#pragma comment(lib, "Shlwapi.lib")
+#endif
+
 const size_t AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT = 512;
 const size_t AUDIT_MESSAGE_QUEUE_SIZE_LIMIT = 256 * MEGABYTE;
 
-void install_logfile_output_target(std::string dirpath, std::string filename);
+void install_logfile_output_target(const std::string &dirpath, 
+                                   const std::string &filename, 
+                                   const std::string &config_filename);
 
 class audit_log_message_t : public slow_atomic_countable_t<audit_log_message_t> {
 public:
@@ -100,7 +106,6 @@ public:
     static std::string logfilename;
     static std::string dirpath;
     explicit file_output_target_t(std::string _filename);
-    file_output_target_t(std::string server_name, std::string _filename);
 
     ~file_output_target_t() final { }
 
@@ -185,6 +190,7 @@ void audit_log_internal(log_type_t type, log_level_t level, const char *format, 
 
 class thread_pool_audit_log_writer_t : public home_thread_mixin_t {
 public:
+    static std::string config_file_path;
     thread_pool_audit_log_writer_t(std::string server_name,
                                    log_write_issue_tracker_t *log_tracker);
     ~thread_pool_audit_log_writer_t();

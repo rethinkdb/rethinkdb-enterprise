@@ -7,6 +7,7 @@
 #include <io.h>
 #include <evntprov.h>
 #include <conio.h>
+#include <Shlwapi.h>
 #else
 #include <syslog.h>
 #endif
@@ -37,8 +38,7 @@ console_output_target_t *global_console_target;
 
 log_write_issue_tracker_t *log_write_issue_tracker;
 
-const std::string config_base_path = "audit/audit_config.json";
-const std::string logs_base_path = "/../audit/logs/";
+std::string thread_pool_audit_log_writer_t::config_file_path;
 
 struct timespec audit_log_message_t::_uptime_reference;
 std::string file_output_target_t::logfilename;
@@ -69,20 +69,23 @@ void log_error_once(std::string msg) {
     global_console_target->write_internal(&temp_queue, &error_string);
 }
 
-file_output_target_t::file_output_target_t(std::string server_name, std::string _filename) :
-    audit_log_output_target_t(),
-    filename(strprintf("%s%s%s_%s",
-		file_output_target_t::dirpath.c_str(),
-		logs_base_path.c_str(),
-        server_name.c_str(),
-        _filename.c_str()).c_str()),
-    is_logfile(false) { }
-
 // Allow specifiying direct file path for logs table logs.
 file_output_target_t::file_output_target_t(std::string _filename) :
     audit_log_output_target_t(),
-    filename(_filename.c_str()),
-    is_logfile(true) { }
+    is_logfile(true) {
+    // TODO determine if it's relative
+    bool relative;
+#ifdef _WIN32
+    relative = PathIsRelative(_filename.c_str());
+#else
+    relative = (_filename[0] == "/");
+#endif
+    if (relative) {
+        filename = base_path_t(dirpath + "/" + _filename);
+    } else {
+        filename = base_path_t(_filename);
+    }
+}
 
 std::map<std::string, log_type_t> string_to_type {
     {"log", log_type_t::log},
@@ -99,7 +102,7 @@ std::map<log_type_t, std::string> type_to_string {
 thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
     std::string server_name,
     log_write_issue_tracker_t *log_tracker) :
-    config_filename(config_base_path),
+    config_filename(config_file_path),
     _enable_auditing(true) {
 
     log_write_issue_tracker = log_tracker;
@@ -128,8 +131,10 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
 
     // This is how rapidjson recommends doing this.
     char readBuffer[65536];
-    FILE *fp = fopen(config_filename.path().c_str(), "r");
-
+    FILE *fp = nullptr;
+    if (config_file_path != "") {
+        fp = fopen(config_filename.path().c_str(), "r");
+    }
     rapidjson::Document d;
 
     if (fp != nullptr) {
@@ -160,7 +165,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
 
                 counted_t<file_output_target_t> new_file =
                     make_counted<file_output_target_t>(
-                    server_name,
                     files[i]["filename"].GetString());
 
                 if (files[i]["min_severity"].IsInt()) {
@@ -195,11 +199,11 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
         }
     }
 
-    if (_enable_auditing && d.HasMember("syslog") && d["syslog"].IsObject()) {
+    if (_enable_auditing && d.HasMember("system") && d["system"].IsObject()) {
 		counted_t<syslog_output_target_t> syslog_target =
 			make_counted<syslog_output_target_t>();
-        if (d["syslog"]["min_severity"].IsInt()) {
-            syslog_target->min_severity = d["syslog"]["min_severity"].GetInt();
+        if (d["system"]["min_severity"].IsInt()) {
+            syslog_target->min_severity = d["system"]["min_severity"].GetInt();
         }
         priority_routing.push_back(counted_t<audit_log_output_target_t>(syslog_target));
     }
@@ -229,7 +233,10 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
     log_write_issue_tracker = nullptr;
 }
 
-void install_logfile_output_target(std::string dirpath, std::string filename) {
+void install_logfile_output_target(const std::string &dirpath, 
+                                   const std::string &filename, 
+                                   const std::string &config_file_name) {
+    thread_pool_audit_log_writer_t::config_file_path = config_file_name;
     audit_log_message_t::set_uptime_reference();
 	file_output_target_t::logfilename = filename;
 	file_output_target_t::dirpath = dirpath;
@@ -557,8 +564,6 @@ syslog_output_target_t::syslog_output_target_t() : audit_log_output_target_t() {
 
 syslog_output_target_t::~syslog_output_target_t() {
 #ifdef _WIN32
-	if (hEventLog) {
-	}
 #else
 	closelog();
 #endif

@@ -3,17 +3,17 @@
     "files":
     [
         {
-            "filename": "rethinkdb_audit.log",
+            "filename": "rethinkdb_audit_1.log",
             "min_severity": 0,
             "tags": ["log", "query", "connection"]
         },
         {
-            "filename": "rethinkdb_audit_data.log",
+            "filename": "C:/cygwin64/home/teapot/nighelles/rethinkdb-enterprise/audit/rethinkdb_audit_data_1.log",
             "min_severity": 0,
             "tags": ["data"]
         }
     ],
-    "syslog":
+    "system":
     {
         "min_severity": 0,
 		"tags": ["log", "connection"]
