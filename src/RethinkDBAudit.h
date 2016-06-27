@@ -217,36 +217,36 @@ Remarks:
 //+
 // Provider RethinkDB Event Count 7
 //+
-EXTERN_C __declspec(selectany) const GUID RethinkDB = {0x86cc0d90, 0x5027, 0x4a90, {0x86, 0xe9, 0xc8, 0x72, 0xe3, 0x24, 0xa3, 0x49}};
+EXTERN_C __declspec(selectany) const GUID RethinkDB = {0xa478ac50, 0x01c7, 0x42ff, {0xb0, 0x93, 0x03, 0x58, 0x16, 0xb1, 0x07, 0x2f}};
 
 //
 // Channel
 //
-#define RethinkDBAuditLog 0x10
+#define AuditLog 0x10
 
 //
 // Levels
 //
-#define debug 0x10
-#define info 0x11
-#define notice 0x12
-#define warn 0x13
-#define error 0x14
-#define critical 0x15
-#define alert 0x16
-#define emergency 0x17
+#define Debug 0x10
+#define Info 0x11
+#define Notice 0x12
+#define Warn 0x13
+#define Error 0x14
+#define Critical 0x15
+#define Alert 0x16
+#define Emergency 0x17
 //
 // Keyword
 //
-#define audit 0x800000000000
+#define Audit 0x800000000000
 
 //
 // Event Descriptors
 //
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogNotice = {0x0, 0x0, 0x10, 0x12, 0x0, 0x0, 0x8000000000000000};
-#define AuditLogNotice_value 0x0
-EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogError = {0x1, 0x0, 0x10, 0x14, 0x0, 0x0, 0x8000800000000000};
-#define AuditLogError_value 0x1
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogNotice = {0x1, 0x0, 0x10, 0x12, 0x0, 0x0, 0x8000800000000000};
+#define AuditLogNotice_value 0x1
+EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogError = {0x2, 0x0, 0x10, 0x14, 0x0, 0x0, 0x8000800000000000};
+#define AuditLogError_value 0x2
 EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogInfo = {0x3, 0x0, 0x10, 0x11, 0x0, 0x0, 0x8000800000000000};
 #define AuditLogInfo_value 0x3
 EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogWarn = {0x4, 0x0, 0x10, 0x13, 0x0, 0x0, 0x8000800000000000};
@@ -286,7 +286,7 @@ EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogEmergency = {0x7, 
 //
 
 EXTERN_C __declspec(selectany) DECLSPEC_CACHEALIGN ULONG RethinkDBEnableBits[1];
-EXTERN_C __declspec(selectany) const ULONGLONG RethinkDBKeywords[7] = {0x8000000000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000};
+EXTERN_C __declspec(selectany) const ULONGLONG RethinkDBKeywords[7] = {0x8000800000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000, 0x8000800000000000};
 EXTERN_C __declspec(selectany) const UCHAR RethinkDBLevels[7] = {18, 20, 17, 19, 21, 22, 23};
 EXTERN_C __declspec(selectany) MCGEN_TRACE_CONTEXT RethinkDB_Context = {0, 0, 0, 0, 0, 0, 0, 0, 7, RethinkDBEnableBits, RethinkDBKeywords, RethinkDBLevels};
 
@@ -323,7 +323,7 @@ Remarks:
 
 --*/
 {
-    ULONG Error;
+    ULONG Error1;
 
 
     if (*RegHandle) {
@@ -333,9 +333,9 @@ Remarks:
         return ERROR_SUCCESS;
     }
 
-    Error = EventRegister( ProviderId, EnableCallback, CallbackContext, RegHandle); 
+    Error1 = EventRegister( ProviderId, EnableCallback, CallbackContext, RegHandle); 
 
-    return Error;
+    return Error1;
 }
 
 
@@ -355,7 +355,7 @@ Remarks:
             return ERROR_SUCCESS
 --*/
 {
-    ULONG Error;
+    ULONG Error1;
 
 
     if(!(*RegHandle)) {
@@ -365,10 +365,10 @@ Remarks:
         return ERROR_SUCCESS;
     }
 
-    Error = EventUnregister(*RegHandle); 
+    Error1 = EventUnregister(*RegHandle); 
     *RegHandle = (REGHANDLE)0;
     
-    return Error;
+    return Error1;
 }
 #endif
 //
@@ -394,9 +394,9 @@ Remarks:
 //
 // Event Macro for AuditLogNotice
 //
-#define EventWriteAuditLogNotice(message)\
+#define EventWriteAuditLogNotice(Message)\
         EventEnabledAuditLogNotice() ?\
-        Template_z(RethinkDBHandle, &AuditLogNotice, message)\
+        Template_z(RethinkDBHandle, &AuditLogNotice, Message)\
         : ERROR_SUCCESS\
 
 //
@@ -408,9 +408,9 @@ Remarks:
 //
 // Event Macro for AuditLogError
 //
-#define EventWriteAuditLogError(message)\
+#define EventWriteAuditLogError(Message)\
         EventEnabledAuditLogError() ?\
-        Template_z(RethinkDBHandle, &AuditLogError, message)\
+        Template_z(RethinkDBHandle, &AuditLogError, Message)\
         : ERROR_SUCCESS\
 
 //
@@ -422,9 +422,9 @@ Remarks:
 //
 // Event Macro for AuditLogInfo
 //
-#define EventWriteAuditLogInfo(message)\
+#define EventWriteAuditLogInfo(Message)\
         EventEnabledAuditLogInfo() ?\
-        Template_z(RethinkDBHandle, &AuditLogInfo, message)\
+        Template_z(RethinkDBHandle, &AuditLogInfo, Message)\
         : ERROR_SUCCESS\
 
 //
@@ -436,9 +436,9 @@ Remarks:
 //
 // Event Macro for AuditLogWarn
 //
-#define EventWriteAuditLogWarn(message)\
+#define EventWriteAuditLogWarn(Message)\
         EventEnabledAuditLogWarn() ?\
-        Template_z(RethinkDBHandle, &AuditLogWarn, message)\
+        Template_z(RethinkDBHandle, &AuditLogWarn, Message)\
         : ERROR_SUCCESS\
 
 //
@@ -450,9 +450,9 @@ Remarks:
 //
 // Event Macro for AuditLogCritical
 //
-#define EventWriteAuditLogCritical(message)\
+#define EventWriteAuditLogCritical(Message)\
         EventEnabledAuditLogCritical() ?\
-        Template_z(RethinkDBHandle, &AuditLogCritical, message)\
+        Template_z(RethinkDBHandle, &AuditLogCritical, Message)\
         : ERROR_SUCCESS\
 
 //
@@ -464,9 +464,9 @@ Remarks:
 //
 // Event Macro for AuditLogAlert
 //
-#define EventWriteAuditLogAlert(message)\
+#define EventWriteAuditLogAlert(Message)\
         EventEnabledAuditLogAlert() ?\
-        Template_z(RethinkDBHandle, &AuditLogAlert, message)\
+        Template_z(RethinkDBHandle, &AuditLogAlert, Message)\
         : ERROR_SUCCESS\
 
 //
@@ -478,9 +478,9 @@ Remarks:
 //
 // Event Macro for AuditLogEmergency
 //
-#define EventWriteAuditLogEmergency(message)\
+#define EventWriteAuditLogEmergency(Message)\
         EventEnabledAuditLogEmergency() ?\
-        Template_z(RethinkDBHandle, &AuditLogEmergency, message)\
+        Template_z(RethinkDBHandle, &AuditLogEmergency, Message)\
         : ERROR_SUCCESS\
 
 #endif // MCGEN_DISABLE_PROVIDER_CODE_GENERATION
@@ -525,8 +525,17 @@ Template_z(
 };
 #endif
 
-#define MSG_RethinkDB_EventProvider_event_0_message 0xB0000000L
-#define MSG_RethinkDB_EventProvider_event_1_message 0xB0000001L
+#define MSG_RethinkDB_keyword_Audit_message  0x10000030L
+#define MSG_RethinkDB_level_Debug_message    0x50000010L
+#define MSG_RethinkDB_level_Info_message     0x50000011L
+#define MSG_RethinkDB_level_Notice_message   0x50000012L
+#define MSG_RethinkDB_level_Warn_message     0x50000013L
+#define MSG_RethinkDB_level_Error_message    0x50000014L
+#define MSG_RethinkDB_level_Critical_message 0x50000015L
+#define MSG_RethinkDB_level_Alert_message    0x50000016L
+#define MSG_RethinkDB_level_Emergency_message 0x50000017L
+#define MSG_RethinkDB_event_1_message        0xB0000001L
+#define MSG_RethinkDB_event_2_message        0xB0000002L
 #define MSG_RethinkDB_event_3_message        0xB0000003L
 #define MSG_RethinkDB_event_4_message        0xB0000004L
 #define MSG_RethinkDB_event_5_message        0xB0000005L

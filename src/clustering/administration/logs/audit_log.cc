@@ -25,7 +25,7 @@
 #include "thread_local.hpp"
 
 #ifdef _WIN32
-#include "RethinkDBAuditManifest.h"
+#include "RethinkDBAudit.h"
 #endif
 
 TLS_with_init(thread_pool_audit_log_writer_t *, global_audit_log_writer, nullptr);
@@ -554,16 +554,16 @@ bool console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
 }
 
 syslog_output_target_t::syslog_output_target_t() : audit_log_output_target_t() {
-
 #ifdef _WIN32
-		EventRegisterRethinkDB();
+    EventRegisterRethinkDB();
 #else
-		openlog("rethinkdb", LOG_PID, 0);
+    openlog("rethinkdb", LOG_PID, 0);
 #endif
 }
 
 syslog_output_target_t::~syslog_output_target_t() {
 #ifdef _WIN32
+    EventUnregisterRethinkDB();
 #else
 	closelog();
 #endif
