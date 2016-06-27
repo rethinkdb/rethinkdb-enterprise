@@ -8,7 +8,7 @@
             "tags": ["log", "query", "connection"]
         },
         {
-            "filename": "C:/cygwin64/home/teapot/nighelles/rethinkdb-enterprise/audit/rethinkdb_audit_data_1.log",
+            "filename": "/home/nighelles/rethinkdb-enterprise/rethinkdb_data/rethinkdb_audit_data_1.log",
             "min_severity": 0,
             "tags": ["data"]
         }

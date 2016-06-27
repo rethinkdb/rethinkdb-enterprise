@@ -70,15 +70,15 @@ void log_error_once(std::string msg) {
 }
 
 // Allow specifiying direct file path for logs table logs.
-file_output_target_t::file_output_target_t(std::string _filename) :
+file_output_target_t::file_output_target_t(std::string _filename, bool _is_logfile) :
     audit_log_output_target_t(),
-    is_logfile(true) {
+    is_logfile(_is_logfile) {
     // TODO determine if it's relative
     bool relative;
 #ifdef _WIN32
     relative = PathIsRelative(_filename.c_str());
 #else
-    relative = (_filename[0] == "/");
+    relative = (_filename[0] != '/');
 #endif
     if (relative) {
         filename = base_path_t(dirpath + "/" + _filename);
@@ -100,7 +100,7 @@ std::map<log_type_t, std::string> type_to_string {
     {log_type_t::data, "data"}};
 
 thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
-    std::string server_name,
+    UNUSED std::string server_name,
     log_write_issue_tracker_t *log_tracker) :
     config_filename(config_file_path),
     _enable_auditing(true) {
@@ -111,14 +111,14 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
 
-	global_logfile_target = new file_output_target_t(file_output_target_t::logfilename);
-	global_logfile_target->respects_enabled_flag = false;
-	global_logfile_target->install();
-	// We only want this target to save logs.
-	global_logfile_target->tags.push_back(log_type_t::log);
+    global_logfile_target = new file_output_target_t(file_output_target_t::logfilename, true);
+    global_logfile_target->respects_enabled_flag = false;
+    global_logfile_target->install();
+    // We only want this target to save logs.
+    global_logfile_target->tags.push_back(log_type_t::log);
 
-	global_console_target = new console_output_target_t();
-	global_console_target->respects_enabled_flag = false;
+    global_console_target = new console_output_target_t();
+    global_console_target->respects_enabled_flag = false;
 
     counted_t<file_output_target_t> logfile(global_logfile_target);
     logfile->tags.push_back(log_type_t::log);
@@ -165,7 +165,8 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
 
                 counted_t<file_output_target_t> new_file =
                     make_counted<file_output_target_t>(
-                    files[i]["filename"].GetString());
+                        files[i]["filename"].GetString(),
+                        false);
 
                 if (files[i]["min_severity"].IsInt()) {
                     new_file->min_severity = files[i]["min_severity"].GetInt();
@@ -572,51 +573,50 @@ syslog_output_target_t::~syslog_output_target_t() {
 bool syslog_output_target_t::write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
                                             UNUSED std::string *error_message) {
 #ifdef _WIN32
-	while (auto msg = local_queue->head()) {
-		local_queue->pop_front();
-		LPCTSTR pInsertStrings[1] = { nullptr };
+    while (auto msg = local_queue->head()) {
+        local_queue->pop_front();
+        LPCTSTR pInsertStrings[1] = { nullptr };
 
-		pInsertStrings[0] = msg->msg->message.c_str();
-		
-		int buffer_size = MultiByteToWideChar(CP_UTF8, 0, msg->msg->message.c_str(), -1, nullptr, 0);
-		wchar_t* temp = new wchar_t[buffer_size];
-		
-		int res = MultiByteToWideChar(CP_UTF8, 0, msg->msg->message.c_str(), -1, temp, buffer_size);
-		if (!res) {
-			*error_message = strprintf("Cannot write to Windows Event Viewer: %s", winerr_string(GetLastError()).c_str());
-			log_error_once(*error_message);
-			return false;
-		}
+        pInsertStrings[0] = msg->msg->message.c_str();
 
-		switch (msg->msg->level) {
-		case log_level_debug:
-		case log_level_info:
-			EventWriteAuditLogInfo(temp);
-			break;
-		case log_level_notice:
-			EventWriteAuditLogNotice(temp);
-			break;
-		case log_level_warn:
-			EventWriteAuditLogWarn(temp);
-			break;
-		case log_level_error:
-			EventWriteAuditLogError(temp);
-			break;
-		case log_level_critical:
-			EventWriteAuditLogCritical(temp);
-			break;
-		case log_level_alert:
-			EventWriteAuditLogAlert(temp);
-			break;
-		case log_level_emergency:
-			EventWriteAuditLogEmergency(temp);
-		default:
-			unreachable();
-		}
-		delete[] temp;
-		
-		delete msg;
-	}
+        int buffer_size = MultiByteToWideChar(CP_UTF8, 0, msg->msg->message.c_str(), -1, nullptr, 0);
+        wchar_t* temp = new wchar_t[buffer_size];
+
+        int res = MultiByteToWideChar(CP_UTF8, 0, msg->msg->message.c_str(), -1, temp, buffer_size);
+        if (!res) {
+            *error_message = strprintf("Cannot write to Windows Event Viewer: %s", winerr_string(GetLastError()).c_str());
+            log_error_once(*error_message);
+            return false;
+        }
+
+        switch (msg->msg->level) {
+        case log_level_debug:
+        case log_level_info:
+            EventWriteAuditLogInfo(temp);
+            break;
+        case log_level_notice:
+            EventWriteAuditLogNotice(temp);
+            break;
+        case log_level_warn:
+            EventWriteAuditLogWarn(temp);
+            break;
+        case log_level_error:
+            EventWriteAuditLogError(temp);
+            break;
+        case log_level_critical:
+            EventWriteAuditLogCritical(temp);
+            break;
+        case log_level_alert:
+            EventWriteAuditLogAlert(temp);
+            break;
+        case log_level_emergency:
+            EventWriteAuditLogEmergency(temp);
+        default:
+            unreachable();
+        }
+        delete[] temp;
+        delete msg;
+    }
 #else
     while(auto msg = local_queue->head()) {
         local_queue->pop_front();

@@ -105,7 +105,7 @@ class file_output_target_t : public audit_log_output_target_t {
 public:
     static std::string logfilename;
     static std::string dirpath;
-    explicit file_output_target_t(std::string _filename);
+    explicit file_output_target_t(std::string _filename, bool _is_logfile);
 
     ~file_output_target_t() final { }
 
