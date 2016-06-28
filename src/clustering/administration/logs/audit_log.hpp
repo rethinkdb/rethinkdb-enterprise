@@ -115,9 +115,10 @@ public:
         fd.reset(h);
 
         if (fd.get() == INVALID_FD) {
-        throw std::runtime_error(strprintf("Failed to open log file '%s': %s",
-                                           filename.path().c_str(),
-                                           winerr_string(GetLastError()).c_str()).c_str());
+            logERR("Failed to open log file '%s': %s",
+            filename.path().c_str(),
+            winerr_string(GetLastError()).c_str());
+            return false;
         }
 #else
         int res;
