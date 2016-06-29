@@ -55,6 +55,9 @@
 #include "clustering/administration/main/windows_service.hpp"
 #include "clustering/administration/metadata.hpp"
 #include "clustering/administration/logs/audit_log.hpp"
+#ifdef _WIN32
+#include "clustering/administration/logs/audit_manifest.h"
+#endif
 #include "clustering/administration/logs/log_writer.hpp"
 #include "clustering/administration/main/path.hpp"
 #include "clustering/administration/persist/file.hpp"
@@ -2722,11 +2725,120 @@ int run_and_maybe_elevate(
     }
 }
 
+bool generate_audit_manifest(std::string rethinkdb_path, std::string full_audit_path) {
+    bool success = true;
+    // Install windows event viewer
+    fprintf(stderr, "Generating Manifest for RethinkDB in Windows Event Viewer...\n");
+    std::string manifest_text = get_audit_manifest(std::string(rethinkdb_path));
+
+    HANDLE audit_file = CreateFile(full_audit_path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (audit_file == INVALID_FD) {
+        fprintf(stderr,
+            "Failed to open audit manifest file '%s': %s",
+            full_audit_path.c_str(),
+            winerr_string(GetLastError()).c_str());
+        success = false;
+    }
+    bool res = WriteFile(audit_file, manifest_text.c_str(), manifest_text.length(), nullptr, nullptr);
+    if (res == 0) {
+        fprintf(stderr,
+            "Failed to write to audit manifest file '%s': %s",
+            full_audit_path.c_str(),
+            winerr_string(GetLastError()).c_str());
+        success = false;
+    }
+    res = CloseHandle(audit_file);
+    if (res == 0) {
+        fprintf(stderr,
+            "Failed to close audit manifest file '%s': %s",
+            full_audit_path.c_str(),
+            winerr_string(GetLastError()).c_str());
+        success = false;
+    }
+    return success;
+}
+
+bool install_audit_manifest() {
+    // Get our filename
+    TCHAR my_path[MAX_PATH];
+    if (!GetModuleFileName(nullptr, my_path, MAX_PATH)) {
+        fprintf(stderr, "Unable to retrieve own path: %s\n",
+            winerr_string(GetLastError()).c_str());
+        return EXIT_FAILURE;
+    }
+    TCHAR full_audit_path[MAX_PATH];
+    DWORD full_audit_path_length = GetFullPathName(
+        "RethinkDB.man",
+        MAX_PATH,
+        full_audit_path,
+        nullptr);
+    if (full_audit_path_length >= MAX_PATH) {
+        fprintf(
+            stderr,
+            "The absolute path to the audit manifest file is too long. "
+            "It must be shorter than %zu.\n",
+            static_cast<size_t>(MAX_PATH));
+        return EXIT_FAILURE;
+    } else if (full_audit_path_length == 0) {
+        fprintf(
+            stderr,
+            "Failed to convert the audit manifest file path to an absolute path: %s\n",
+            winerr_string(GetLastError()).c_str());
+        return EXIT_FAILURE;
+    }
+
+    bool success = generate_audit_manifest(std::string(my_path), std::string(full_audit_path));
+    
+    system("wevtutil im RethinkDB.man");
+    fprintf(stderr, "Successfully installed RethinkDB manifest in Windows Event Log.")
+    return success;
+}
+
+bool remove_audit_manifest() {
+    // Get our filename
+    TCHAR my_path[MAX_PATH];
+    if (!GetModuleFileName(nullptr, my_path, MAX_PATH)) {
+        fprintf(stderr, "Unable to retrieve own path: %s\n",
+            winerr_string(GetLastError()).c_str());
+        return EXIT_FAILURE;
+    }
+    TCHAR full_audit_path[MAX_PATH];
+    DWORD full_audit_path_length = GetFullPathName(
+        "RethinkDB.man",
+        MAX_PATH,
+        full_audit_path,
+        nullptr);
+    if (full_audit_path_length >= MAX_PATH) {
+        fprintf(
+            stderr,
+            "The absolute path to the audit manifest file is too long. "
+            "It must be shorter than %zu.\n",
+            static_cast<size_t>(MAX_PATH));
+        return EXIT_FAILURE;
+    } else if (full_audit_path_length == 0) {
+        fprintf(
+            stderr,
+            "Failed to convert the audit manifest file path to an absolute path: %s\n",
+            winerr_string(GetLastError()).c_str());
+        return EXIT_FAILURE;
+    }
+    bool success = generate_audit_manifest(std::string(my_path), std::string(full_audit_path));
+    // wevtutil um
+    bool res = system("wevtutil um RethinkDB.man");
+    if (res != 0) {
+        fprintf(stderr, "Failed to remove RethinkDB in Windows Event Viewer.\n");
+    } else {
+        fprintf(stderr, "Done removing.\n");
+    }
+    return success;
+}
+
 int main_rethinkdb_install_service(int argc, char *argv[]) {
     bool already_elevated = was_elevated(argc, argv);
     if (already_elevated) {
         --argc;
     }
+    std::string path(argv[0]);
 
     std::vector<options::option_t> options;
     std::vector<options::help_section_t> help;
@@ -2827,6 +2939,8 @@ int main_rethinkdb_install_service(int argc, char *argv[]) {
             if (start_windows_service(service_name)) {
                 fprintf(stderr, "Service `%s` started.\n", service_name.c_str());
             }
+            success &= install_audit_manifest();
+
             return success;
         });
     } catch (const options::named_error_t &ex) {
@@ -2878,6 +2992,7 @@ int main_rethinkdb_remove_service(int argc, char *argv[]) {
             if (success) {
                 fprintf(stderr, "Service `%s` removed.\n", service_name.c_str());
             }
+            success &= remove_audit_manifest();
             return success;
         });
     } catch (const options::named_error_t &ex) {
