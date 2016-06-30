@@ -27,7 +27,9 @@ public:
     const std::string &get_pkey() const;
 
     ql::datum_t read_row(ql::env_t *env,
-        ql::datum_t pval, read_mode_t read_mode);
+        ql::datum_t pval,
+        read_mode_t read_mode,
+        read_routing_t const &read_routing);
     counted_t<ql::datum_stream_t> read_all(
         ql::env_t *env,
         const std::string &get_all_sindex_id,
@@ -35,7 +37,8 @@ public:
         const std::string &table_name,   /* the table's own name, for display purposes */
         const ql::datumspec_t &datumspec,
         sorting_t sorting,
-        read_mode_t read_mode);
+        read_mode_t read_mode,
+        read_routing_t const &read_routing);
     counted_t<ql::datum_stream_t> read_changes(
         ql::env_t *env,
         const ql::changefeed::streamspec_t &ss,
@@ -46,12 +49,14 @@ public:
         ql::backtrace_id_t bt,
         const std::string &table_name,
         read_mode_t read_mode,
+        read_routing_t const &read_routing,
         const ql::datum_t &query_geometry);
     ql::datum_t read_nearest(
         ql::env_t *env,
         const std::string &sindex,
         const std::string &table_name,
         read_mode_t read_mode,
+        read_routing_t const &read_routing,
         lon_lat_point_t center,
         double max_dist,
         uint64_t max_results,

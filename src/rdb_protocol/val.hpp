@@ -14,6 +14,7 @@
 #include "rdb_protocol/geo/distances.hpp"
 #include "rdb_protocol/geo/lon_lat_types.hpp"
 #include "rdb_protocol/protocol.hpp"
+#include "rdb_protocol/read_routing.hpp"
 #include "rdb_protocol/ql2.pb.h"
 
 class ellipsoid_spec_t;
@@ -31,8 +32,11 @@ onto it. */
 class table_t : public single_threaded_countable_t<table_t>, public bt_rcheckable_t {
 public:
     table_t(counted_t<base_table_t> &&,
-            counted_t<const db_t> db, const std::string &name,
-            read_mode_t _read_mode, backtrace_id_t src);
+            counted_t<const db_t> db,
+            const std::string &name,
+            read_mode_t _read_mode,
+            read_routing_t _read_routing,
+            backtrace_id_t src);
     namespace_id_t get_id() const;
     const std::string &get_pkey() const;
     datum_t get_row(env_t *env, datum_t pval);
@@ -113,6 +117,7 @@ private:
         env_t *env, durability_requirement_t durability_requirement);
 
     read_mode_t read_mode;
+    read_routing_t read_routing;
 };
 
 class table_slice_t

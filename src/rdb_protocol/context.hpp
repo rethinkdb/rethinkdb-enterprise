@@ -23,6 +23,7 @@
 #include "rdb_protocol/datum.hpp"
 #include "rdb_protocol/geo/distances.hpp"
 #include "rdb_protocol/geo/lon_lat_types.hpp"
+#include "rdb_protocol/read_routing.hpp"
 #include "rdb_protocol/shards.hpp"
 #include "rdb_protocol/wire_func.hpp"
 
@@ -151,12 +152,16 @@ public:
         const std::string &,
         const ql::datumspec_t &,
         sorting_t,
-        read_mode_t) {
+        read_mode_t,
+        read_routing_t const &) {
         r_sanity_fail();
     }
 
-    virtual ql::datum_t read_row(ql::env_t *env,
-        ql::datum_t pval, read_mode_t read_mode) = 0;
+    virtual ql::datum_t read_row(
+        ql::env_t *env,
+        ql::datum_t pval,
+        read_mode_t read_mode,
+        read_routing_t const &) = 0;
     virtual counted_t<ql::datum_stream_t> read_all(
         ql::env_t *env,
         const std::string &sindex,
@@ -164,7 +169,8 @@ public:
         const std::string &table_name,   /* the table's own name, for display purposes */
         const ql::datumspec_t &datumspec,
         sorting_t sorting,
-        read_mode_t read_mode) = 0;
+        read_mode_t read_mode,
+        read_routing_t const &) = 0;
     virtual counted_t<ql::datum_stream_t> read_changes(
         ql::env_t *env,
         const ql::changefeed::streamspec_t &ss,
@@ -175,12 +181,14 @@ public:
         ql::backtrace_id_t bt,
         const std::string &table_name,
         read_mode_t read_mode,
+        read_routing_t const &,
         const ql::datum_t &query_geometry) = 0;
     virtual ql::datum_t read_nearest(
         ql::env_t *env,
         const std::string &sindex,
         const std::string &table_name,
         read_mode_t read_mode,
+        read_routing_t const &,
         lon_lat_point_t center,
         double max_dist,
         uint64_t max_results,

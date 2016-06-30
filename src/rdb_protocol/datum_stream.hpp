@@ -541,6 +541,7 @@ public:
         std::string table_name,
         profile_bool_t profile,
         read_mode_t read_mode,
+        read_routing_t const &read_routing,
         sorting_t sorting);
     virtual ~readgen_t() { }
 
@@ -578,6 +579,7 @@ protected:
     const std::string table_name;
     const profile_bool_t profile;
     const read_mode_t read_mode;
+    const read_routing_t read_routing;
     const sorting_t sorting_;
 };
 
@@ -590,6 +592,7 @@ public:
         const datumspec_t &datumspec,
         profile_bool_t profile,
         read_mode_t read_mode,
+        read_routing_t const &read_routing,
         sorting_t sorting,
         require_sindexes_t require_sindex_val);
 
@@ -624,6 +627,7 @@ public:
         env_t *env,
         std::string table_name,
         read_mode_t read_mode,
+        read_routing_t const &read_routing,
         const datumspec_t &datumspec = datumspec_t(datum_range_t::universe()),
         sorting_t sorting = sorting_t::UNORDERED);
 
@@ -634,6 +638,7 @@ private:
                       const datumspec_t &datumspec,
                       profile_bool_t profile,
                       read_mode_t read_mode,
+                      read_routing_t const &read_routing,
                       sorting_t sorting);
     virtual rget_read_t next_read_impl(
         const boost::optional<active_ranges_t> &active_ranges,
@@ -660,6 +665,7 @@ public:
         env_t *env,
         std::string table_name,
         read_mode_t read_mode,
+        read_routing_t const &read_routing,
         const std::string &sindex,
         const datumspec_t &datumspec = datumspec_t(datum_range_t::universe()),
         sorting_t sorting = sorting_t::UNORDERED,
@@ -679,6 +685,7 @@ private:
         const datumspec_t &datumspec,
         profile_bool_t profile,
         read_mode_t read_mode,
+        read_routing_t const &read_routing,
         sorting_t sorting,
         require_sindexes_t require_sindex_val);
     virtual rget_read_t next_read_impl(
@@ -702,6 +709,7 @@ public:
         env_t *env,
         std::string table_name,
         read_mode_t read_mode,
+        read_routing_t const &read_routing,
         const std::string &sindex,
         const datum_t &query_geometry);
 
@@ -734,7 +742,8 @@ private:
         const std::string &sindex,
         const datum_t &query_geometry,
         profile_bool_t profile,
-        read_mode_t read_mode);
+        read_mode_t read_mode,
+        read_routing_t const &read_routing);
 
     // Analogue to rget_readgen_t::next_read_impl(), but generates an intersecting
     // geo read.

@@ -1,0 +1,227 @@
+#!/usr/bin/env python
+# Copyright 2014-2016 RethinkDB, all rights reserved.
+
+import datetime, os, socket, sys, time
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), os.path.pardir, 'common')))
+import driver, scenario_common, utils, vcoptparse
+
+def assert_read_on_server(conn, read_routing, server):
+    old = list(
+        r.db("rethinkdb")
+         .table("stats")
+         .filter(
+             r.row["id"][0]
+              .eq("server")
+              .and_(
+                  r.row["server"]
+                   .eq(server)
+               )
+          )
+         .get_field("query_engine")
+         .get_field("read_docs_total")
+         .run(conn))[0]
+
+    r.table("routing").get(0).run(
+        conn, read_mode="outdated", read_routing=read_routing)
+
+    new = list(
+        r.db("rethinkdb")
+         .table("stats")
+         .filter(
+             r.row["id"][0]
+              .eq("server")
+              .and_(
+                  r.row["server"]
+                   .eq(server)
+               )
+          )
+         .get_field("query_engine")
+         .get_field("read_docs_total")
+         .run(conn))[0]
+
+    assert new == old + 1
+
+r = utils.import_python_driver()
+with driver.Cluster(output_folder='.') as cluster:
+    opt_parser = vcoptparse.OptParser()
+    scenario_common.prepare_option_parser_mode_flags(opt_parser)
+    options = opt_parser.parse(sys.argv)
+    _, command_prefix, serve_options = scenario_common.parse_mode_flags(options)
+
+    replica_a = driver.Process(
+        cluster,
+        name="replica_a",
+        server_tags=["replica_tag_a", "replica_tag_b"],
+        command_prefix=command_prefix,
+        extra_options=serve_options)
+    replica_b = driver.Process(
+        cluster,
+        name="replica_b",
+        server_tags=["replica_tag_a", "replica_tag_c"],
+        command_prefix=command_prefix,
+        extra_options=serve_options)
+    replica_c = driver.Process(
+        cluster,
+        name="replica_c",
+        server_tags=["replica_tag_d"],
+        command_prefix=command_prefix,
+        extra_options=serve_options)
+
+    cluster.wait_until_ready()
+
+    conn_a = r.connect(replica_a.host, replica_a.driver_port)
+    conn_b = r.connect(replica_b.host, replica_b.driver_port)
+    conn_c = r.connect(replica_c.host, replica_c.driver_port)
+
+    # --
+
+    r.db_create("test").run(conn_a)
+    r.db("test").wait(wait_for="all_replicas_ready").run(conn_a)
+
+    r.table_create(
+            "routing",
+            replicas={"replica_tag_b": 1, "replica_tag_c": 1},
+            primary_replica_tag="replica_tag_b"
+        ).run(conn_a)
+    r.table("routing").wait(wait_for="all_replicas_ready").run(conn_a)
+
+    r.table("routing").insert({"id": 0}).run(conn_a)
+
+    # --
+
+    res = r.table("routing").get(0).run(conn_a)
+    assert res == {u'id': 0}, res
+    res = r.table("routing").get(0).run(conn_a, read_mode="outdated")
+    assert res == {u'id': 0}, res
+    try:
+        res = r.table("routing").get(0).run(conn_a, read_routing={})
+        assert False, res
+    except r.ReqlQueryLogicError, err:
+        assert err.message == "The `read_routing` option can only be specified for the `\"outdated\"` read mode.", err.message
+    try:
+        res = r.table("routing").get(0).run(conn_a, read_mode="single", read_routing={})
+        assert False, res
+    except r.ReqlQueryLogicError, err:
+        assert err.message == "The `read_routing` option can only be specified for the `\"outdated\"` read mode.", err.message
+    try:
+        res = r.table("routing").get(0).run(
+            conn_a, read_mode="outdated", read_routing={})
+        assert False, res
+    except r.ReqlQueryLogicError, err:
+        assert err.message == "`replica_tags` or `replicas` must be specified.", err.message
+
+    res = r.table("routing").get(0).run(
+        conn_a, read_mode="outdated", read_routing={"replicas": "replica_a"})
+    assert res == {u'id': 0}, res
+    res = r.table("routing").get(0).run(
+        conn_a, read_mode="outdated", read_routing={"replica_tags": "replica_tag_c"})
+    assert res == {u'id': 0}, res
+    res = r.table("routing").get(0).run(
+        conn_a,
+        read_mode="outdated",
+        read_routing={"replicas": "replica_a", "replica_tags": "replica_tag_c"})
+    assert res == {u'id': 0}, res
+
+    try:
+        res = r.table("routing").get(0).run(
+            conn_a, read_mode="outdated", read_routing={"replicas": []})
+        assert False, res
+    except r.ReqlQueryLogicError, err:
+        assert err.message == "`replica_tags` or `replicas` must be specified.", err.message
+    res = r.table("routing").get(0).run(
+        conn_a, read_mode="outdated", read_routing={"replicas": ["replica_a"]})
+    assert res == {u'id': 0}, res
+    res = r.table("routing").get(0).run(
+        conn_a,
+        read_mode="outdated",
+        read_routing={"replicas": ["replica_a", "replica_b"]})
+    assert res == {u'id': 0}, res
+    try:
+        res = r.table("routing").get(0).run(
+            conn_a, read_mode="outdated", read_routing={"replica_tags": []})
+        assert False, res
+    except r.ReqlQueryLogicError, err:
+        assert err.message == "`replica_tags` or `replicas` must be specified.", err.message
+    res = r.table("routing").get(0).run(
+        conn_a, read_mode="outdated", read_routing={"replica_tags": ["replica_tag_c"]})
+    assert res == {u'id': 0}, res
+    res = r.table("routing").get(0).run(
+        conn_a,
+        read_mode="outdated",
+        read_routing={"replica_tags": ["replica_tag_b", "replica_tag_c"]})
+    assert res == {u'id': 0}, res
+    try:
+        res = r.table("routing").get(0).run(
+            conn_a,
+            read_mode="outdated",
+            read_routing={"replicas": [], "replica_tags": []})
+        assert res == {u'id': 0}, res
+    except r.ReqlQueryLogicError, err:
+        assert err.message == "`replica_tags` or `replicas` must be specified.", err.message
+    res = r.table("routing").get(0).run(
+        conn_a,
+        read_mode="outdated",
+        read_routing={"replicas": "replica_a", "replica_tags": "replica_tag_c"})
+    assert res == {u'id': 0}, res
+
+    # FIXME combination arrays
+
+    res = r.table("routing").get(0).run(
+        conn_a,
+        read_mode="outdated",
+        read_routing={"replicas": "replica_b", "prefer_local": False})
+    assert res == {u'id': 0}, res
+    res = r.table("routing").get(0).run(
+        conn_a,
+        read_mode="outdated",
+        read_routing={"replicas": "replica_a", "on_unavailable": "try_any"})
+    assert res == {u'id': 0}, res
+    res = r.table("routing").get(0).run(
+        conn_a,
+        read_mode="outdated",
+        read_routing={"replicas": "replica_a", "on_unavailable": "error"})
+    assert res == {u'id': 0}, res
+    try:
+        res = r.table("routing").get(0).run(
+            conn_a,
+            read_mode="outdated",
+            read_routing={"replicas": "replica_a", "on_unavailable": "invalid"})
+        assert False, res
+    except r.ReqlQueryLogicError, err:
+        assert err.message == "`on_unavailable` has to be either `\"try_any\"` or `\"error\"`.", err.message
+    try:
+        res = r.table("routing").get(0).run(
+            conn_a,
+            read_mode="outdated",
+            read_routing={"replicas": "replica_c", "on_unavailable": "error", "prefer_local": False})
+        assert False, res
+    except r.ReqlOpFailedError, err:
+        assert err.message == "Cannot perform read: no replica is available.", err.message
+
+    # --
+
+    assert_read_on_server(
+        conn_a,
+        {"replicas": "replica_a"},
+        "replica_a")
+    assert_read_on_server(
+        conn_a,
+        {"replicas": "replica_b"},
+        "replica_a")
+    assert_read_on_server(
+        conn_a,
+        {"replicas": "replica_b", "prefer_local": False},
+        "replica_b")
+    assert_read_on_server(
+        conn_a,
+        {"replica_tags": "replica_tag_b"},
+        "replica_a")
+    assert_read_on_server(
+        conn_a,
+        {"replica_tags": "replica_tag_c"},
+        "replica_a")
+    assert_read_on_server(
+        conn_a,
+        {"replica_tags": "replica_tag_c", "prefer_local": False},
+        "replica_b")

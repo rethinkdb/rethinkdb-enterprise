@@ -92,6 +92,7 @@ static const std::set<std::string> acceptable_optargs({
     "primary_replica_tag",
     "profile",
     "read_mode",
+    "read_routing",
     "redirects",
     "replicas",
     "result_format",
