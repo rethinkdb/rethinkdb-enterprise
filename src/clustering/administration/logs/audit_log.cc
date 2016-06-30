@@ -25,7 +25,7 @@
 #include "thread_local.hpp"
 
 #ifdef _WIN32
-#include "RethinkDBAudit.h"
+#include "audit/RethinkDBAudit.h"
 #endif
 
 TLS_with_init(thread_pool_audit_log_writer_t *, global_audit_log_writer, nullptr);

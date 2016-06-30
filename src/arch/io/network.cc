@@ -1550,8 +1550,8 @@ void linux_nonthrowing_tcp_listener_t::accept_loop_single(
             }
         } else {
             winsock_debugf("accepted %x from %x\n", new_sock, listening_sock);
-			int foo = setsockopt(fd_to_socket(new_sock), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, reinterpret_cast<char*>(&listening_sock), sizeof(SOCKET));
-			guarantee(foo == 0);
+			int update_res = setsockopt(fd_to_socket(new_sock), SOL_SOCKET, SO_UPDATE_ACCEPT_CONTEXT, reinterpret_cast<char*>(&listening_sock), sizeof(listening_sock));
+			guarantee(update_res == 0);
             coro_t::spawn_now_dangerously(std::bind(&linux_nonthrowing_tcp_listener_t::handle, this, new_sock));
             backoff.success();
         }

@@ -2790,7 +2790,7 @@ bool install_audit_manifest() {
     bool success = generate_audit_manifest(std::string(my_path), std::string(full_audit_path));
     
     system("wevtutil im RethinkDB.man");
-    fprintf(stderr, "Successfully installed RethinkDB manifest in Windows Event Log.")
+    fprintf(stderr, "Successfully installed RethinkDB manifest in Windows Event Log.");
     return success;
 }
 
