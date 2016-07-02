@@ -48,21 +48,18 @@ public:
     static void set_uptime_reference() {
         _uptime_reference = clock_monotonic();
     }
-    struct timespec timestamp;
-    struct timespec uptime;
+    timespec timestamp;
+    timespec uptime;
 
     log_type_t type;
     log_level_t level;
     std::string message;
 };
 
-RDB_DECLARE_SERIALIZABLE(audit_log_message_t);
-
 // Handles output to a file, syslog, or other output target.
 // Should also handle locking for non thread-safe resources used for output.
 
-class audit_log_output_target_t : public slow_atomic_countable_t<audit_log_output_target_t>,
-                                  public home_thread_mixin_t {
+class audit_log_output_target_t : public home_thread_mixin_t {
 public:
     friend class thread_pool_audit_log_writer_t;
     audit_log_output_target_t(bool _respects_enabled_flag, int _min_severity) :
@@ -72,7 +69,7 @@ public:
 
     virtual ~audit_log_output_target_t() { }
 
-    virtual bool write_internal(std::deque<audit_log_message_t> *local_queue,
+    virtual bool write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
                                 std::string *error_message) = 0;
 
     void emplace_message(counted_t<audit_log_message_t> msg, bool ignore_capacity);
@@ -88,7 +85,7 @@ private:
 
     spinlock_t queue_mutex;
 
-    intrusive_list_t<audit_log_messagee_t> queue;
+    std::deque<counted_t<audit_log_message_t> > queue;
     size_t queue_size;
     pump_coro_t write_pump;
 
@@ -108,7 +105,7 @@ public:
 
     bool install();
 
-    bool write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
+    bool write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
                         std::string *error_out) final;
 private:
     base_path_t filename;
@@ -123,7 +120,7 @@ public:
 	~syslog_output_target_t();
 
 private:
-    bool write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
+    bool write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
                         std::string *error_out) final;
 #ifdef _WIN32
 	HANDLE hEventLog;
@@ -138,7 +135,7 @@ public:
 
     ~console_output_target_t() { }
 
-    bool write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
+    bool write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
                         std::string *error_out) final;
 };
 
@@ -154,7 +151,7 @@ public:
 
     static std::string format_audit_log_message(counted_t<audit_log_message_t> msg, bool for_console);
     void write(counted_t<audit_log_message_t> msg);
-
+    
     bool enable_auditing() { return enable_auditing_; }
 
 private:

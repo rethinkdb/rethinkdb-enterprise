@@ -220,9 +220,9 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
         boost::bind(&thread_pool_audit_log_writer_t::uninstall_on_thread, this, _1));
 
     drainer.drain();
-    for (auto it : priority_routing) {
-        on_thread_t rethreader((*it)->home_thread());
-        it->reset();
+    for (auto &&output_target : priority_routing) {
+        on_thread_t rethreader(output_target->home_thread());
+        output_target.reset();
     }
     priority_routing.clear();
     while (priority_routing.size() > 0) {
@@ -347,7 +347,7 @@ std::string format_log_message(const counted_t<audit_log_message_t> &m, bool for
 
 void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
     // Select targets by configured severity level
-    for (auto it : priority_routing) {
+    for (const auto &it : priority_routing) {
         if (it->min_severity <= msg->level) {
 
             if (it->tags.empty() ||
@@ -369,7 +369,7 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
     size_t msg_size = msg->message.size();
     {
         spinlock_acq_t s_acq(&queue_mutex);
-        queue.push_back(new audit_log_message_node_t(msg));
+        queue.push_back(msg);
         queue_size += msg_size;
     }
     // Add messages to intrusive list unless the batch is full,
@@ -396,10 +396,10 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
 
 void audit_log_output_target_t::flush() {
     // Grab all the logs in the local queue to write out, and reset queue.
-    intrusive_list_t<audit_log_message_node_t> local_queue;
+    std::deque<counted_t<audit_log_message_t> > local_queue;
     {
         spinlock_acq_t s_acq(&queue_mutex);
-        local_queue.append_and_clear(&queue);
+        local_queue.swap(queue);
     }
     std::string error_message;
     bool res;
@@ -497,7 +497,7 @@ bool file_output_target_t::install() {
 }
 
 bool file_output_target_t::write_internal(
-    intrusive_list_t<audit_log_message_node_t> *local_queue,
+    std::deque<counted_t<audit_log_message_t> > *local_queue,
     std::string *error_message) {
 
     bool ok = true;
@@ -505,21 +505,16 @@ bool file_output_target_t::write_internal(
         *error_message = strprintf("Log file is invalid: %s",
                                    errno_string(get_errno()).c_str());
         log_error_once(*error_message);
-        while (auto msg = local_queue->head()) {
-            local_queue->pop_front();
-            delete msg;
-        }
         return false;
     }
 
-    while (auto msg = local_queue->head()) {
-        local_queue->pop_front();
+    for (const auto &msg : *local_queue) {
         std::string msg_str;
         if (!is_logfile) {
             msg_str  =
-                thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg);
+                thread_pool_audit_log_writer_t::format_audit_log_message(msg);
         } else {
-            msg_str = format_log_message(msg->msg, false) + '\n';
+            msg_str = format_log_message(msg, false) + '\n';
         }
 #ifdef _WIN32
         DWORD bytes_written;
@@ -544,14 +539,13 @@ bool file_output_target_t::write_internal(
             log_error_once(*error_message);
         }
 #endif
-        delete msg;
     }
     return ok;
 }
 
-bool console_output_target_t::write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
+bool console_output_target_t::write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
                                              UNUSED std::string *error_message) {
-    while(auto msg = local_queue->head()) {
+    for (const auto &msg : *local_queue) {
 #ifdef _MSC_VER
         static int STDOUT_FILENO = -1;
         static int STDERR_FILENO = -1;
@@ -562,8 +556,7 @@ bool console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
 #endif
 
         int fileno = -1;
-        local_queue->pop_front();
-        switch (msg->msg->level) {
+        switch (msg->level) {
         case log_level_info:
             // no message on stdout/stderr
             break;
@@ -582,13 +575,25 @@ bool console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
             unreachable();
         }
         std::string msg_str =
-            thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg, true);
+            thread_pool_audit_log_writer_t::format_audit_log_message(msg, true);
 #ifdef _WIN32
-        size_t write_res = fwrite(msg_str.data(), 1, msg_str.length(), stderr);
+        size_t write_res = fwrite(msg_str.data(), 1, msg_str.size(), stderr);
+        guarantee(write_res == msg_str.size());
 #else
-        UNUSED ssize_t write_res = ::write(fileno, msg_str.c_str(), msg_str.length());
+        const char* data = msg_str.c_str();
+        const char* end = data + msg_str.size();
+        while (data < end) {
+            ssize_t written = ::write(fileno, data, end - data);
+            if (written == -1) {
+                int errno = get_errno();
+                if (errno != EINTR) {
+                    crash("Error while writing to console: %d", errno);
+                }
+            } else {
+                data += written;
+            }
+        }
 #endif
-        delete msg;
     }
     return true;
 }
@@ -610,26 +615,25 @@ syslog_output_target_t::~syslog_output_target_t() {
 #endif
 }
 
-bool syslog_output_target_t::write_internal(intrusive_list_t<audit_log_message_node_t> *local_queue,
+bool syslog_output_target_t::write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
                                             UNUSED std::string *error_message) {
 #ifdef _WIN32
-    while (auto msg = local_queue->head()) {
-        local_queue->pop_front();
+    for (const auto &msg : *local_queue) {
         LPCTSTR pInsertStrings[1] = { nullptr };
 
-        pInsertStrings[0] = msg->msg->message.c_str();
+        pInsertStrings[0] = msg->message.c_str();
 
-        int buffer_size = MultiByteToWideChar(CP_UTF8, 0, msg->msg->message.c_str(), -1, nullptr, 0);
+        int buffer_size = MultiByteToWideChar(CP_UTF8, 0, msg->message.c_str(), -1, nullptr, 0);
         wchar_t* temp = new wchar_t[buffer_size];
 
-        int res = MultiByteToWideChar(CP_UTF8, 0, msg->msg->message.c_str(), -1, temp, buffer_size);
+        int res = MultiByteToWideChar(CP_UTF8, 0, msg->message.c_str(), -1, temp, buffer_size);
         if (!res) {
             *error_message = strprintf("Cannot write to Windows Event Viewer: %s", winerr_string(GetLastError()).c_str());
             log_error_once(*error_message);
             return false;
         }
 
-        switch (msg->msg->level) {
+        switch (msg->level) {
         case log_level_debug:
         case log_level_info:
             EventWriteAuditLogInfo(temp);
@@ -655,13 +659,11 @@ bool syslog_output_target_t::write_internal(intrusive_list_t<audit_log_message_n
             unreachable();
         }
         delete[] temp;
-        delete msg;
     }
 #else
-    while(auto msg = local_queue->head()) {
-        local_queue->pop_front();
+    for (const auto &msg : local_queue) {
         int priority_level = 0;
-        switch (msg->msg->level) {
+        switch (msg->level) {
         case log_level_info:
             priority_level = LOG_INFO;
             break;
@@ -690,8 +692,7 @@ bool syslog_output_target_t::write_internal(intrusive_list_t<audit_log_message_n
             unreachable();
         }
         syslog(priority_level, "%s",
-               thread_pool_audit_log_writer_t::format_audit_log_message(msg->msg).c_str());
-        delete msg;
+               thread_pool_audit_log_writer_t::format_audit_log_message(msg).c_str());
     }
 #endif
     return true;

@@ -11,7 +11,6 @@ cross_thread_auto_drainer_t::~cross_thread_auto_drainer_t() {
     if (!draining) {
         drain();
     }
-    // TODO
     guarantee(refcount == 0);
 }
 
@@ -21,7 +20,7 @@ cross_thread_auto_drainer_t::lock_t::lock_t() : parent(nullptr) {
 cross_thread_auto_drainer_t::lock_t::lock_t(cross_thread_auto_drainer_t *p)
     : parent(p) {
     guarantee(parent != nullptr);
-    // TODO guarantee not draining
+    guarantee(!parent->draining);
     parent->incref();
 }
 
@@ -58,7 +57,7 @@ void cross_thread_auto_drainer_t::lock_t::reset() {
 }
 
 cross_thread_auto_drainer_t::lock_t::~lock_t() {
-    if (parent) parent->decref();
+    reset();
 }
 
 void cross_thread_auto_drainer_t::drain() {

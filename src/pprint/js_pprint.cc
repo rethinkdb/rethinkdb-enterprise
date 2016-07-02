@@ -177,14 +177,18 @@ private:
         {
             // Strip newlines
             std::string text = d.as_str().to_std();
-            size_t pos = text.find("\n");
-            while (pos != std::string::npos) {
-                text.erase(pos, 1);
-                text.insert(pos, "\\n");
-                pos += 2;
-                pos = text.find("\n", pos);
+            std::string new_text;
+            new_text.reserve(text.size() + (text.size() / 10) + 2);
+            new_text.push_back('"'); // (>^^)>
+            for (char c : text) {
+                if (c == '\n') {
+                    new_text.append("\\n");
+                } else {
+                    new_text.push_back(c);
+                }
             }
-            return make_text(strprintf("\"%s\"", text.c_str()));
+            new_text.push_back('"'); // <(^^<)
+            return make_text(text);
         }
         case ql::datum_t::type_t::R_ARRAY:
         {
