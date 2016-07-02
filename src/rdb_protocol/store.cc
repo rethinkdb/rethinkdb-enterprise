@@ -663,7 +663,7 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
         response->response = dummy_read_response_t();
     }
 
-    rdb_read_visitor_t(uuid_u _job_id,
+    rdb_read_visitor_t(job_id_t _job_id,
                        btree_slice_t *_btree,
                        store_t *_store,
                        real_superblock_t *_superblock,
@@ -682,7 +682,7 @@ struct rdb_read_visitor_t : public boost::static_visitor<void> {
 
 private:
 
-    uuid_u job_id;
+    job_id_t job_id;
     read_response_t *const response;
     rdb_context_t *const ctx;
     signal_t *const interruptor;
@@ -703,7 +703,7 @@ void store_t::protocol_read(const read_t &_read,
     {
         PROFILE_STARTER_IF_ENABLED(
             _read.profile == profile_bool_t::PROFILE, "Perform read on shard.", trace);
-        rdb_read_visitor_t v(generate_uuid(),
+        rdb_read_visitor_t v(job_id_t(generate_uuid()),
                              btree.get(), this,
                              superblock,
                              ctx, response, trace.get_or_null(), interruptor);
@@ -879,7 +879,7 @@ struct rdb_write_visitor_t : public boost::static_visitor<void> {
         response->response = dummy_write_response_t();
     }
 
-    rdb_write_visitor_t(uuid_u _job_id,
+    rdb_write_visitor_t(job_id_t _job_id,
                         btree_slice_t *_btree,
                         store_t *_store,
                         txn_t *_txn,
@@ -916,7 +916,7 @@ private:
                                true /* release_sindex_block */);
     }
 
-    uuid_u job_id;
+    job_id_t job_id;
     btree_slice_t *const btree;
     store_t *const store;
     txn_t *const txn;

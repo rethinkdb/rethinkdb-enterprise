@@ -25,7 +25,7 @@ extern "C" {
 #if  !defined(McGenDebug)
 #define McGenDebug(a,b)
 #endif 
-
+    
 
 #if !defined(MCGEN_TRACE_CONTEXT_DEF)
 #define MCGEN_TRACE_CONTEXT_DEF

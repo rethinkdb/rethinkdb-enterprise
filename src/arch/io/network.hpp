@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "arch/compiler.hpp"
+#include "clustering/administration/logs/connection_id_t.hpp"
 #include "config/args.hpp"
 #include "concurrency/interruptor.hpp"
 #include "containers/lazy_erase_vector.hpp"
@@ -174,8 +175,8 @@ public:
         return event_watcher.get();
     }
 
-    uuid_u get_uuid() {
-        return uuid;
+    connection_id_t get_connection_id() {
+        return connection_id;
     }
 protected:
 
@@ -191,7 +192,7 @@ protected:
     /* These are pulsed if and only if the read/write end of the connection has been closed. */
     cond_t read_closed, write_closed;
 
-    uuid_u uuid;
+    connection_id_t connection_id;
 
 private:
 

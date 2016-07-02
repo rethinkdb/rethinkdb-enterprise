@@ -37,7 +37,7 @@
 
 #include "debug.hpp"
 
-rdb_value_sizer_t::rdb_value_sizer_t(max_block_size_t bs) : block_size_(bs) { }
+rdb_value_sizer_t::rdb_value_sizer_t(max_block_size_t bs) : block_size_(bs) {}
 
 const rdb_value_t *rdb_value_sizer_t::as_rdb(const void *p) {
     return reinterpret_cast<const rdb_value_t *>(p);
@@ -213,7 +213,7 @@ kv_location_set(keyvalue_location_t *kv_location,
 }
 
 batched_replace_response_t rdb_replace_and_return_superblock(
-    uuid_u job_id,
+    job_id_t job_id,
     const btree_loc_info_t &info,
     const btree_point_replacer_t *replacer,
     const deletion_context_t *deletion_context,
@@ -290,7 +290,7 @@ batched_replace_response_t rdb_replace_and_return_superblock(
             // Log modified data for auditing
             auditINF(log_type_t::data,
                      "job id: %s, old value: %s new value: %s\n",
-                     uuid_to_str(job_id).c_str(),
+                     uuid_to_str(job_id.get_uuid()).c_str(),
                      old_val.print().c_str(),
                      new_val.print().c_str());
 
@@ -345,7 +345,7 @@ private:
 
 void do_a_replace_from_batched_replace(
     auto_drainer_t::lock_t,
-    uuid_u job_id,
+    job_id_t job_id,
     fifo_enforcer_sink_t *batched_replaces_fifo_sink,
     const fifo_enforcer_write_token_t &batched_replaces_fifo_token,
     const btree_loc_info_t &info,
@@ -382,7 +382,7 @@ void do_a_replace_from_batched_replace(
 }
 
 batched_replace_response_t rdb_batched_replace(
-    uuid_u job_id,
+    job_id_t job_id,
     const btree_info_t &info,
     scoped_ptr_t<real_superblock_t> *superblock,
     const std::vector<store_key_t> &keys,

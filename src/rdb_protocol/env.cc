@@ -66,7 +66,7 @@ scoped_ptr_t<profile::trace_t> maybe_make_profile_trace(profile_bool_t profile) 
         : scoped_ptr_t<profile::trace_t>();
 }
 
-env_t::env_t(uuid_u _job_id,
+env_t::env_t(job_id_t _job_id,
              rdb_context_t *ctx,
              return_empty_normal_batches_t _return_empty_normal_batches,
              signal_t *_interruptor,

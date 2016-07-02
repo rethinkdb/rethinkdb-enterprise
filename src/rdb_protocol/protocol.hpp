@@ -670,7 +670,7 @@ struct write_t {
     profile_bool_t profile;
     ql::configured_limits_t limits;
 
-    uuid_u job_id;
+    job_id_t job_id;
 
     region_t get_region() const THROWS_NOTHING;
     // Returns true if the write had any side effects applicable to the
@@ -695,7 +695,7 @@ struct write_t {
             DURABILITY_REQUIREMENT_HARD,
             profile,
             ql::configured_limits_t(),
-            generate_uuid());
+            job_id_t(generate_uuid()));
     }
 
     write_t() :
@@ -713,7 +713,7 @@ struct write_t {
             durability_requirement_t _durability,
             profile_bool_t _profile,
             const ql::configured_limits_t &_limits,
-            uuid_u _job_id)
+            job_id_t _job_id)
         : write(std::forward<T>(t)),
           durability_requirement(_durability), profile(_profile),
           limits(_limits),
@@ -723,12 +723,12 @@ struct write_t {
             durability_requirement_t _durability,
             profile_bool_t _profile,
             const ql::configured_limits_t &_limits)
-        : write_t(t, _durability, _profile, _limits, generate_uuid()) { }
+        : write_t(t, _durability, _profile, _limits, job_id_t(generate_uuid())) { }
 
     template<class T>
     write_t(T &&t, profile_bool_t _profile,
             const ql::configured_limits_t &_limits,
-            uuid_u _job_id)
+            job_id_t _job_id)
         : write(std::forward<T>(t)),
           durability_requirement(DURABILITY_REQUIREMENT_DEFAULT),
           profile(_profile),

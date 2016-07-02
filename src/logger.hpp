@@ -6,6 +6,7 @@
 #include <string>
 
 #include "arch/compiler.hpp"
+#include "clustering/administration/logs/job_id_t.hpp"
 
 enum log_level_t { log_level_debug = 0,
                    log_level_info = 1,

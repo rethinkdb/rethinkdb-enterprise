@@ -865,7 +865,7 @@ limit_manager_t::limit_manager_t(
 
     // The final `NULL` argument means we don't profile any work done with this `env`.
     env = make_scoped<env_t>(
-        generate_uuid(),
+        job_id_t(generate_uuid()),
         ctx,
         return_empty_normal_batches_t::NO,
         drainer.get_drain_signal(),

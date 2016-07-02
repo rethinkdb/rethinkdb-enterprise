@@ -96,7 +96,6 @@ scoped_ptr_t<query_cache_t::ref_t> query_cache_t::create(query_params_t *query_p
                                                     std::move(entry)));
     guarantee(insert_res.second);
 
-
     return ref;
 }
 
@@ -217,7 +216,7 @@ void query_cache_t::ref_t::fill_response(response_t *res) {
 
     try {
         env_t env(
-            entry->job_id,
+            job_id_t(entry->job_id),
             query_cache->rdb_ctx,
             query_cache->return_empty_normal_batches,
             &combined_interruptor,

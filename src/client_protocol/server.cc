@@ -273,14 +273,21 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
 
     conn->enable_keepalive();
 
-    ip_and_port_t peer;
-    UNUSED bool peer_res = conn->getpeername(&peer);
+    ip_and_port_t client_addr_port(ip_address_t::any(AF_INET), port_t(0));
+    UNUSED bool client_addr_res = conn->getpeername(&client_addr_port);
+
+    // Log the initial connection to the server.
+    auditINF(log_type_t::connection,
+        "New connection from %s, connection id: %s\n",
+        client_addr_port.to_string().c_str(),
+        uuid_to_str(conn->get_connection_id().get_uuid()).c_str());
 
     uint8_t version = 0;
     std::unique_ptr<auth::base_authenticator_t> authenticator;
     uint32_t error_code = 0;
     std::string error_message;
     bool disconnected = false;
+    bool connection_failed = false;
     try {
         int32_t client_magic_number;
         conn->read_buffered(
@@ -442,9 +449,6 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
             }
         }
 
-        ip_and_port_t client_addr_port(ip_address_t::any(AF_INET), port_t(0));
-		UNUSED bool client_addr_res = conn->getpeername(&client_addr_port);
-
         guarantee(authenticator != nullptr);
         ql::query_cache_t query_cache(
             rdb_ctx,
@@ -453,13 +457,13 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
                 ? ql::return_empty_normal_batches_t::YES
                 : ql::return_empty_normal_batches_t::NO,
             auth::user_context_t(authenticator->get_authenticated_username()),
-            conn->get_uuid());
+            conn->get_connection_id().get_uuid());
 
         auditINF(log_type_t::connection,
-                 "%s connected from %s, connection id: %s\n",
+                 "%s authenticated from %s, connection id: %s\n",
                  authenticator->get_authenticated_username().to_string().c_str(),
-                 peer.to_string().c_str(),
-                 uuid_to_str(conn->get_uuid()).c_str());
+                 client_addr_port.to_string().c_str(),
+                 uuid_to_str(conn->get_connection_id().get_uuid()).c_str());
 
         connection_loop<json_protocol_t>(
             conn.get(),
@@ -473,46 +477,51 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
         // exception handler
         error_code = error.get_error_code();
         error_message = error.what();
+        connection_failed = true;
     } catch (interrupted_exc_t const &) {
         // If we have been interrupted, we can't write a message to the client, as that
         // may block (and we would just be interrupted again anyway), just close.
+        connection_failed = true;
     } catch (auth::authentication_error_t const &error) {
         // Note these have error codes 10 to 20
         error_code = error.get_error_code();
         error_message = error.what();
+        connection_failed = true;
     } catch (crypto::error_t const &error) {
         error_code = 21;
         error_message = error.what();
+        connection_failed = true;
     } catch (crypto::openssl_error_t const &error) {
         error_code = 22;
         error_message = error.code().message();
+        connection_failed = true;
     } catch (const tcp_conn_read_closed_exc_t &) {
         disconnected = true;
     } catch (const tcp_conn_write_closed_exc_t &) {
         disconnected = true;
     } catch (const std::exception &ex) {
         logERR("Unexpected exception in client handler: %s", ex.what());
+        connection_failed = true;
     }
 
     if (authenticator && disconnected) {
         std::string username = authenticator->get_unauthenticated_username().to_string();
-		auditINF(log_type_t::connection,
-			"%s disconnected from %s, connection id: %s\n",
-			(username == "") ? "A user" : username.c_str(),
-			peer.to_string().c_str(),
-			uuid_to_str(conn->get_uuid()).c_str());
+        auditINF(log_type_t::connection,
+            "%s disconnected from %s, connection id: %s\n",
+            (username == "") ? "A user" : username.c_str(),
+            client_addr_port.to_string().c_str(),
+            uuid_to_str(conn->get_connection_id().get_uuid()).c_str());
+    } else if (authenticator && connection_failed) {
+        std::string username = authenticator->get_unauthenticated_username().to_string();
+        auditNTC(log_type_t::connection,
+            "%s FAILED to authenticate from %s, connection id: %s, %s\n",
+            (username == "") ? "A user" : username.c_str(),
+            client_addr_port.to_string().c_str(),
+            uuid_to_str(conn->get_connection_id().get_uuid()).c_str(),
+            error_message.c_str());
     }
 
     if (!error_message.empty()) {
-        if (authenticator) {
-            std::string username = authenticator->get_unauthenticated_username().to_string();	
-			auditINF(log_type_t::connection,
-				     "%s FAILED to connect from %s, connection id: %s, %s\n",
-				     (username == "") ? "A user" : username.c_str(),
-				     peer.to_string().c_str(),
-				     uuid_to_str(conn->get_uuid()).c_str(),
-				     error_message.c_str());
-        }
         try {
             if (version < 10) {
                 std::string error = "ERROR: " + error_message + "\n";

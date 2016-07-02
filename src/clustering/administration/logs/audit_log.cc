@@ -30,11 +30,6 @@
 
 TLS_with_init(thread_pool_audit_log_writer_t *, global_audit_log_writer, nullptr);
 TLS_with_init(auto_drainer_t *, global_audit_log_drainer, nullptr);
-TLS_with_init(int, audit_log_writer_block, 0);
-
-// We need to set this in command_line.cc
-file_output_target_t *global_logfile_target;
-console_output_target_t *global_console_target;
 
 log_write_issue_tracker_t *log_write_issue_tracker;
 
@@ -45,35 +40,30 @@ std::string file_output_target_t::logfilename;
 std::string file_output_target_t::dirpath;
 
 void report_success() {
-    coro_t::spawn_on_thread([] () {
+    coro_t::spawn_on_thread([](){
             log_write_issue_tracker->report_success();
         }, log_write_issue_tracker->home_thread());
 }
 
 
 void report_error(std::string msg) {
-    coro_t::spawn_on_thread([msg] () {
+    coro_t::spawn_on_thread([msg](){
             log_write_issue_tracker->report_error(msg);
         }, log_write_issue_tracker->home_thread());
 }
 
 void log_error_once(std::string msg) {
-    counted_t<audit_log_message_t> log_msg =
-        make_counted<audit_log_message_t>(log_level_t::log_level_error,
-                                          log_type_t::log,
-                                          msg);
-    intrusive_list_t<audit_log_message_node_t> temp_queue;
-    temp_queue.push_back(new audit_log_message_node_t(log_msg));
-	std::string error_string;
-    //global_logfile_target->write_internal(&temp_queue, &error_string);
-    global_console_target->write_internal(&temp_queue, &error_string);
+    fallback_log_message(log_level_t::log_level_error, msg);
 }
 
 // Allow specifiying direct file path for logs table logs.
-file_output_target_t::file_output_target_t(std::string _filename, bool _is_logfile) :
-    audit_log_output_target_t(),
+file_output_target_t::file_output_target_t(bool _respects_enabled_flag, 
+                                           int _min_severity, 
+                                           std::string _filename, 
+                                           bool _is_logfile) :
+    audit_log_output_target_t(_respects_enabled_flag, _min_severity),
     is_logfile(_is_logfile) {
-    // TODO determine if it's relative
+    guarantee(_filename != "");
     bool relative;
 #ifdef _WIN32
     relative = PathIsRelative(_filename.c_str());
@@ -100,10 +90,9 @@ std::map<log_type_t, std::string> type_to_string {
     {log_type_t::data, "data"}};
 
 thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
-    UNUSED std::string server_name,
     log_write_issue_tracker_t *log_tracker) :
     config_filename(config_file_path),
-    _enable_auditing(true) {
+    enable_auditing_(true) {
 
     log_write_issue_tracker = log_tracker;
 
@@ -111,23 +100,17 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
 
-    global_logfile_target = new file_output_target_t(file_output_target_t::logfilename, true);
-    global_logfile_target->respects_enabled_flag = false;
-    global_logfile_target->install();
-    // We only want this target to save logs.
-    global_logfile_target->tags.push_back(log_type_t::log);
-
-    global_console_target = new console_output_target_t();
-    global_console_target->respects_enabled_flag = false;
-
-    counted_t<file_output_target_t> logfile(global_logfile_target);
-    logfile->tags.push_back(log_type_t::log);
+    file_output_target_t *logfile =
+        new file_output_target_t(false, 0, file_output_target_t::logfilename, true);
     logfile->install();
-    priority_routing.push_back(counted_t<audit_log_output_target_t>(logfile));
+    // We only want this target to save logs.
+    logfile->tags.push_back(log_type_t::log);
 
-    counted_t<console_output_target_t> console_target(global_console_target);
-    console_target->min_severity = log_level_t::log_level_notice;
-    priority_routing.push_back(counted_t<audit_log_output_target_t>(console_target));
+    priority_routing.push_back(scoped_ptr_t<audit_log_output_target_t>(logfile));
+
+    console_output_target_t *console_target =
+        new console_output_target_t(log_level_t::log_level_notice);
+    priority_routing.push_back(scoped_ptr_t<audit_log_output_target_t>(console_target));
 
     // This is how rapidjson recommends doing this.
     char readBuffer[65536];
@@ -141,40 +124,47 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
         rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
         d.ParseStream(is);
     } else {
-        _enable_auditing = false;
+        enable_auditing_ = false;
     }
 
     if (d.HasParseError()) {
         logERR("\nAudit Config file Error(offset %u): %s\n",
-               (unsigned)d.GetErrorOffset(),
+               static_cast<unsigned>(d.GetErrorOffset()),
                GetParseError_En(d.GetParseError()));
         logERR("Audit logging will be DISABLED.\n");
 
-        // Disable auditing and exit
-        _enable_auditing = false;
-    } else if (_enable_auditing &&
+        enable_auditing_ = false;
+    } else if (enable_auditing_ &&
                d.HasMember("enable_auditing") && d["enable_auditing"].GetBool() == false) {
         // Auditing config is otherwise correct, but has disabled auditing.
-        _enable_auditing = false;
-    } else if (_enable_auditing) {
+        enable_auditing_ = false;
+    } else if (enable_auditing_) {
         // Set up file and syslog targets for audit log.
         if (d.HasMember("files") && d["files"].IsArray()) {
-            const rapidjson::Value& files = d["files"];
+            const rapidjson::Value &files = d["files"];
             for (rapidjson::SizeType i = 0; i < files.Size(); ++i) {
                 guarantee(files[i]["filename"].IsString());
 
-                counted_t<file_output_target_t> new_file =
-                    make_counted<file_output_target_t>(
+                std::string newfilename = files[i].GetString();
+                if (newfilename.length() == 0) {
+                    logWRN("Auditing configuration error: invalid filename.\n");
+                    enable_auditing_ = false;
+                    break;
+                }
+                int new_min_severity = 0;
+                if (files[i]["min_severity"].IsInt()) {
+                    new_min_severity = files[i]["min_severity"].GetInt();
+                }
+                file_output_target_t *new_file =
+                    new file_output_target_t(
+                        true,
+                        new_min_severity,
                         files[i]["filename"].GetString(),
                         false);
 
-                if (files[i]["min_severity"].IsInt()) {
-                    new_file->min_severity = files[i]["min_severity"].GetInt();
-                }
-
                 // Setup type routing.
                 if (files[i].HasMember("tags")) {
-                    const rapidjson::Value& tags = files[i]["tags"];
+                    const rapidjson::Value &tags = files[i]["tags"];
                     if (tags.IsArray()) {
                         // Why would rapidjson use Begin rather than begin, cmon.
                         for (auto it = tags.Begin(); it != tags.End(); ++it) {
@@ -191,33 +181,37 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
                 // Setup file output for this file.
                 bool install_ok = new_file->install();
                 if (!install_ok) {
-                    _enable_auditing = false;
+                    // install() will log why the file failed to open.
+                    enable_auditing_ = false;
                     break;
                 }
 				priority_routing.push_back(
-					counted_t<audit_log_output_target_t>(new_file));
+					scoped_ptr_t<audit_log_output_target_t>(new_file));
             }
         }
     }
 
-    if (_enable_auditing && d.HasMember("system") && d["system"].IsObject()) {
-		counted_t<syslog_output_target_t> syslog_target =
-			make_counted<syslog_output_target_t>();
+    if (enable_auditing_ && d.HasMember("system") && d["system"].IsObject()) {
+        int new_min_severity = 0;
         if (d["system"]["min_severity"].IsInt()) {
-            syslog_target->min_severity = d["system"]["min_severity"].GetInt();
+            new_min_severity = d["system"]["min_severity"].GetInt();
         }
-        priority_routing.push_back(counted_t<audit_log_output_target_t>(syslog_target));
+		syslog_output_target_t *syslog_target =
+			new syslog_output_target_t(true, new_min_severity);
+        priority_routing.push_back(scoped_ptr_t<audit_log_output_target_t>(syslog_target));
     }
 
-    if (_enable_auditing) {
+    if (enable_auditing_) {
         logNTC("Audit logging enabled.\n");
     } else {
         logWRN("Audit logging disabled\n");
     }
 
-
     if (fp != nullptr) {
-        fclose(fp);
+        int res = fclose(fp);
+        if (res != 0) {
+            logERR("Failed to close audit config file.\n");
+        }
     }
 }
 thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
@@ -225,6 +219,12 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::uninstall_on_thread, this, _1));
 
+    drainer.drain();
+    for (auto it : priority_routing) {
+        on_thread_t rethreader((*it)->home_thread());
+        it->reset();
+    }
+    priority_routing.clear();
     while (priority_routing.size() > 0) {
         auto it = priority_routing.begin();
         on_thread_t rethreader((*it)->home_thread());
@@ -263,7 +263,8 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
     bool for_console = false) {
     std::string msg_string;
 
-    bool ends_in_newline = msg->message.back() == '\n';
+    bool ends_in_newline = 
+        msg->message.length() == 0 ? false : msg->message.back() == '\n';
     if (!for_console) {
         msg_string = strprintf("%s %s [%s]: %s%s",
                                format_time(msg->timestamp, local_or_utc_time_t::utc).c_str(),
@@ -365,8 +366,7 @@ void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
 void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> msg,
                                                 bool ignore_capacity) {
     auto keepalive = drainer.lock();
-    size_t msg_size = sizeof(msg->message);
-    bool over_capacity;
+    size_t msg_size = msg->message.size();
     {
         spinlock_acq_t s_acq(&queue_mutex);
         queue.push_back(new audit_log_message_node_t(msg));
@@ -374,7 +374,7 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
     }
     // Add messages to intrusive list unless the batch is full,
     // then the code will block until a file write is done.
-    over_capacity = queue.size() > AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT
+    bool over_capacity = queue.size() > AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT
         || queue_size > AUDIT_MESSAGE_QUEUE_SIZE_LIMIT;
     if (!ignore_capacity && over_capacity) {
         {
@@ -429,12 +429,8 @@ void vaudit_log_internal(log_type_t type,
     thread_pool_audit_log_writer_t *writer = TLS_get_global_audit_log_writer();
     if (writer != nullptr) {
         auto_drainer_t::lock_t lock(TLS_get_global_audit_log_drainer());
-        int writer_block = TLS_get_audit_log_writer_block();
-        if (writer_block == 0) {
-            writer->write(log_msg);
-        } else {
-            log_error_once("Failed to write audit log message.\n");
-        }
+        writer->write(log_msg);
+
     } else {
         if (type == log_type_t::log) {
             // These should be startup messages, forward to fallback_log_writer.
@@ -455,6 +451,49 @@ void audit_log_internal
         va_start(args, format);
         vaudit_log_internal(type, level, format, args);
         va_end(args);
+}
+
+bool file_output_target_t::install() {
+#ifdef _WIN32
+    HANDLE h = CreateFile(filename.path().c_str(), FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    fd.reset(h);
+
+    if (fd.get() == INVALID_FD) {
+        logERR("Failed to open log file '%s': %s",
+            filename.path().c_str(),
+            winerr_string(GetLastError()).c_str());
+        return false;
+    }
+#else
+    int res;
+    do {
+        res = open(filename.path().c_str(), O_WRONLY | O_APPEND | O_CREAT, 0644);
+    } while (res == INVALID_FD && get_errno() == EINTR);
+
+    fd.reset(res);
+    if (fd.get() == INVALID_FD) {
+        logERR("Failed to open log file '%s': %s",
+            filename.path().c_str(),
+            errno_string(errno).c_str());
+        return false;
+    }
+#endif // _WIN32
+    // Get the absolute path for the log file, so it will still be valid if
+    //  the working directory changes
+    filename.make_absolute();
+
+    // For the case that the log file was newly created,
+    // call fsync() on the parent directory to guarantee that its
+    // directory entry is persisted to disk.
+    int sync_res = fsync_parent_directory(filename.path().c_str());
+    if (sync_res != 0) {
+        char errno_str_buf[250];
+        const char *errno_str = errno_string_maybe_using_buffer(sync_res,
+            errno_str_buf, sizeof(errno_str_buf));
+        logWRN("Parent directory of log file (%s) could not be synced. (%s)\n",
+            filename.path().c_str(), errno_str);
+    }
+    return true;
 }
 
 bool file_output_target_t::write_internal(
@@ -554,7 +593,8 @@ bool console_output_target_t::write_internal(intrusive_list_t<audit_log_message_
     return true;
 }
 
-syslog_output_target_t::syslog_output_target_t() : audit_log_output_target_t() {
+syslog_output_target_t::syslog_output_target_t(bool _respects_enabled_flag, int _min_severity) : 
+    audit_log_output_target_t(_respects_enabled_flag, _min_severity) {
 #ifdef _WIN32
     EventRegisterRethinkDB();
 #else
