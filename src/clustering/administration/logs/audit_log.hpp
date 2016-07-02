@@ -63,8 +63,8 @@ class audit_log_output_target_t : public home_thread_mixin_t {
 public:
     friend class thread_pool_audit_log_writer_t;
     audit_log_output_target_t(bool _respects_enabled_flag, int _min_severity) :
-        respects_enabled_flag(_respects_enabled_flag),
         min_severity(_min_severity),
+        respects_enabled_flag(_respects_enabled_flag),
         write_pump([&] (signal_t*) {flush();}) { }
 
     virtual ~audit_log_output_target_t() { }
@@ -74,9 +74,9 @@ public:
 
     void emplace_message(counted_t<audit_log_message_t> msg, bool ignore_capacity);
 
+protected:
     int min_severity;
 
-protected:
     const bool respects_enabled_flag;
 private:
     void flush();

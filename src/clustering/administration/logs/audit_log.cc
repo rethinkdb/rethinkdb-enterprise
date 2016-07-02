@@ -585,9 +585,9 @@ bool console_output_target_t::write_internal(std::deque<counted_t<audit_log_mess
         while (data < end) {
             ssize_t written = ::write(fileno, data, end - data);
             if (written == -1) {
-                int errno = get_errno();
-                if (errno != EINTR) {
-                    crash("Error while writing to console: %d", errno);
+                int err_no = get_errno();
+                if (err_no != EINTR) {
+                    crash("Error while writing to console: %d", err_no);
                 }
             } else {
                 data += written;
@@ -661,7 +661,7 @@ bool syslog_output_target_t::write_internal(std::deque<counted_t<audit_log_messa
         delete[] temp;
     }
 #else
-    for (const auto &msg : local_queue) {
+    for (const auto &msg : *local_queue) {
         int priority_level = 0;
         switch (msg->level) {
         case log_level_info:
