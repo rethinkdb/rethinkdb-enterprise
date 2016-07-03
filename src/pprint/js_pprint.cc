@@ -188,7 +188,7 @@ private:
                 }
             }
             new_text.push_back('"'); // <(^^<)
-            return make_text(text);
+            return make_text(new_text);
         }
         case ql::datum_t::type_t::R_ARRAY:
         {

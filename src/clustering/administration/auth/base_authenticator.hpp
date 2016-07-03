@@ -23,7 +23,8 @@ public:
             THROWS_ONLY(authentication_error_t) = 0;
     virtual username_t get_authenticated_username() const
             THROWS_ONLY(authentication_error_t) = 0;
-    virtual username_t get_unauthenticated_username() const = 0;
+    virtual username_t get_unauthenticated_username() const = 0
+            THROWS_NOTHING;
 
 protected:
     clone_ptr_t<watchable_t<auth_semilattice_metadata_t>> m_auth_watchable;
