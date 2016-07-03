@@ -25,8 +25,8 @@
 const size_t AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT = 512;
 const size_t AUDIT_MESSAGE_QUEUE_SIZE_LIMIT = 256 * MEGABYTE;
 
-void install_logfile_output_target(const std::string &dirpath, 
-                                   const std::string &filename, 
+void install_logfile_output_target(const std::string &dirpath,
+                                   const std::string &filename,
                                    const std::string &config_filename);
 
 class audit_log_message_t : public slow_atomic_countable_t<audit_log_message_t> {
@@ -35,7 +35,7 @@ private:
     static struct timespec _uptime_reference;
 public:
     audit_log_message_t() { }
-    
+
     audit_log_message_t(log_level_t _level,
                         log_type_t _type,
                         std::string _message) :
@@ -96,9 +96,9 @@ class file_output_target_t : public audit_log_output_target_t {
 public:
     static std::string logfilename;
     static std::string dirpath;
-    explicit file_output_target_t(bool _respects_enabled_flag, 
-                                  int _min_severity, 
-                                  std::string _filename, 
+    explicit file_output_target_t(bool _respects_enabled_flag,
+                                  int _min_severity,
+                                  std::string _filename,
                                   bool _is_logfile);
 
     ~file_output_target_t() final { }
@@ -117,7 +117,7 @@ class syslog_output_target_t : public audit_log_output_target_t {
 public:
     syslog_output_target_t(bool _respects_enabled_flag, int _min_severity);
 
-	~syslog_output_target_t();
+    ~syslog_output_target_t();
 
 private:
     bool write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
@@ -151,7 +151,7 @@ public:
 
     static std::string format_audit_log_message(counted_t<audit_log_message_t> msg, bool for_console);
     void write(counted_t<audit_log_message_t> msg);
-    
+
     bool enable_auditing() { return enable_auditing_; }
 
 private:

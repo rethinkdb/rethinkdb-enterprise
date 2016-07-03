@@ -53,7 +53,8 @@ void report_error(std::string msg) {
 }
 
 void log_error_once(std::string msg) {
-    fallback_log_message(log_level_t::log_level_error, msg);
+    fprintf(stderr, "Logging failed: %s\n", msg.c_str());
+    //fallback_log_message(log_level_t::log_level_error, msg);
 }
 
 // Allow specifiying direct file path for logs table logs.
@@ -116,13 +117,19 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
     char readBuffer[65536];
     FILE *fp = nullptr;
     if (config_file_path != "") {
-        fp = fopen(config_filename.path().c_str(), "r");
+        fp = fopen(config_file_path.c_str(), "r");
     }
     rapidjson::Document d;
 
     if (fp != nullptr) {
         rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
         d.ParseStream(is);
+        enable_auditing_ = false;
+
+        int res = fclose(fp);
+        if (res != 0) {
+            logERR("Failed to close audit config file.\n");
+        }
     } else {
         enable_auditing_ = false;
     }
@@ -200,8 +207,8 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
         if (d["system"]["min_severity"].IsInt()) {
             new_min_severity = d["system"]["min_severity"].GetInt();
         }
-		syslog_output_target_t *syslog_target =
-			new syslog_output_target_t(true, new_min_severity);
+        syslog_output_target_t *syslog_target =
+            new syslog_output_target_t(true, new_min_severity);
         priority_routing.push_back(scoped_ptr_t<audit_log_output_target_t>(syslog_target));
     }
 
@@ -210,14 +217,8 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
     } else {
         logWRN("Audit logging disabled\n");
     }
-
-    if (fp != nullptr) {
-        int res = fclose(fp);
-        if (res != 0) {
-            logERR("Failed to close audit config file.\n");
-        }
-    }
 }
+
 thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
     pmap(
         get_num_threads(),
@@ -238,13 +239,13 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
     log_write_issue_tracker = nullptr;
 }
 
-void install_logfile_output_target(const std::string &dirpath, 
-                                   const std::string &filename, 
+void install_logfile_output_target(const std::string &dirpath,
+                                   const std::string &filename,
                                    const std::string &config_file_name) {
     thread_pool_audit_log_writer_t::config_file_path = config_file_name;
     audit_log_message_t::set_uptime_reference();
-	file_output_target_t::logfilename = filename;
-	file_output_target_t::dirpath = dirpath;
+    file_output_target_t::logfilename = filename;
+    file_output_target_t::dirpath = dirpath;
 }
 
 void thread_pool_audit_log_writer_t::install_on_thread(int i) {
@@ -615,7 +616,7 @@ syslog_output_target_t::~syslog_output_target_t() {
 #ifdef _WIN32
     EventUnregisterRethinkDB();
 #else
-	closelog();
+    closelog();
 #endif
 }
 
