@@ -124,7 +124,6 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
     if (fp != nullptr) {
         rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
         d.ParseStream(is);
-        enable_auditing_ = false;
 
         int res = fclose(fp);
         if (res != 0) {
