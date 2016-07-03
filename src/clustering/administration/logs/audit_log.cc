@@ -143,9 +143,13 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
         if (d.HasMember("files") && d["files"].IsArray()) {
             const rapidjson::Value &files = d["files"];
             for (rapidjson::SizeType i = 0; i < files.Size(); ++i) {
-                guarantee(files[i]["filename"].IsString());
+                if (!files[i]["filename"].IsString()) {
+                    enable_auditing_ = false;
+                    logWRN("Auditing configuration error: filename was not a string.\n");
+                    break;
+                }
 
-                std::string newfilename = files[i].GetString();
+                std::string newfilename = files[i]["filename"].GetString();
                 if (newfilename.length() == 0) {
                     logWRN("Auditing configuration error: invalid filename.\n");
                     enable_auditing_ = false;
@@ -185,8 +189,8 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
                     enable_auditing_ = false;
                     break;
                 }
-				priority_routing.push_back(
-					scoped_ptr_t<audit_log_output_target_t>(new_file));
+                priority_routing.push_back(
+                    scoped_ptr_t<audit_log_output_target_t>(new_file));
             }
         }
     }

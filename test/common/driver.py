@@ -93,7 +93,7 @@ class Metacluster(object):
             utils.cleanupPathAtExit(self.dbs_path)
         else:
             if not os.path.exists(output_folder):
-                os.mkdir(output_folder)
+                os.makedirs(output_folder)
             
             if os.path.isdir(output_folder):
                 self.dbs_path = os.path.realpath(output_folder)
@@ -433,7 +433,7 @@ class Process(object):
         newPath = path # should always exist
         while os.path.exists(newPath):
             newPath = '%s_%s' % (os.path.join(path, name), ''.join(random.choice(string.ascii_lowercase) for i in range(extraLetters)))
-        os.makedirs(newPath)
+        os.mkdir(newPath)
         return newPath
     
     def subclass_init(self):
