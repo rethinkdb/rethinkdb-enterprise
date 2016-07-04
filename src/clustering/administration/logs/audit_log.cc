@@ -101,17 +101,20 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
 
-    file_output_target_t *logfile =
-        new file_output_target_t(false, 0, file_output_target_t::logfilename, true);
+    auto logfile =
+        make_scoped<file_output_target_t>(false,
+                                          0,
+                                          file_output_target_t::logfilename,
+                                          true);
     logfile->install();
     // We only want this target to save logs.
     logfile->tags.push_back(log_type_t::log);
 
-    priority_routing.push_back(scoped_ptr_t<audit_log_output_target_t>(logfile));
+    priority_routing.push_back(std::move(logfile));
 
-    console_output_target_t *console_target =
-        new console_output_target_t(log_level_t::log_level_notice);
-    priority_routing.push_back(scoped_ptr_t<audit_log_output_target_t>(console_target));
+    auto console_target =
+        make_scoped<console_output_target_t>(log_level_t::log_level_notice);
+    priority_routing.push_back(std::move(console_target));
 
     // This is how rapidjson recommends doing this.
     char readBuffer[65536];
@@ -165,8 +168,8 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
                 if (files[i]["min_severity"].IsInt()) {
                     new_min_severity = files[i]["min_severity"].GetInt();
                 }
-                file_output_target_t *new_file =
-                    new file_output_target_t(
+                auto new_file =
+                    make_scoped<file_output_target_t>(
                         true,
                         new_min_severity,
                         files[i]["filename"].GetString(),
@@ -195,8 +198,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
                     enable_auditing_ = false;
                     break;
                 }
-                priority_routing.push_back(
-                    scoped_ptr_t<audit_log_output_target_t>(new_file));
+                priority_routing.push_back(std::move(new_file));
             }
         }
     }
@@ -229,11 +231,6 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
         output_target.reset();
     }
     priority_routing.clear();
-    while (priority_routing.size() > 0) {
-        auto it = priority_routing.begin();
-        on_thread_t rethreader((*it)->home_thread());
-        priority_routing.erase(it);
-    }
 
     log_write_issue_tracker = nullptr;
 }
@@ -400,7 +397,7 @@ void audit_log_output_target_t::emplace_message(counted_t<audit_log_message_t> m
 
 void audit_log_output_target_t::flush() {
     // Grab all the logs in the local queue to write out, and reset queue.
-    std::deque<counted_t<audit_log_message_t> > local_queue;
+    std::vector<counted_t<audit_log_message_t> > local_queue;
     {
         spinlock_acq_t s_acq(&queue_mutex);
         local_queue.swap(queue);
@@ -501,7 +498,7 @@ bool file_output_target_t::install() {
 }
 
 bool file_output_target_t::write_internal(
-    std::deque<counted_t<audit_log_message_t> > *local_queue,
+    std::vector<counted_t<audit_log_message_t> > *local_queue,
     std::string *error_message) {
 
     bool ok = true;
@@ -547,7 +544,7 @@ bool file_output_target_t::write_internal(
     return ok;
 }
 
-bool console_output_target_t::write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
+bool console_output_target_t::write_internal(std::vector<counted_t<audit_log_message_t> > *local_queue,
                                              UNUSED std::string *error_message) {
     for (const auto &msg : *local_queue) {
 #ifdef _MSC_VER
@@ -584,7 +581,7 @@ bool console_output_target_t::write_internal(std::deque<counted_t<audit_log_mess
         size_t write_res = fwrite(msg_str.data(), 1, msg_str.size(), stderr);
         guarantee(write_res == msg_str.size());
 #else
-        const char* data = msg_str.c_str();
+        const char* data = msg_str.data();
         const char* end = data + msg_str.size();
         while (data < end) {
             ssize_t written = ::write(fileno, data, end - data);
@@ -602,7 +599,7 @@ bool console_output_target_t::write_internal(std::deque<counted_t<audit_log_mess
     return true;
 }
 
-syslog_output_target_t::syslog_output_target_t(bool _respects_enabled_flag, int _min_severity) : 
+syslog_output_target_t::syslog_output_target_t(bool _respects_enabled_flag, int _min_severity) :
     audit_log_output_target_t(_respects_enabled_flag, _min_severity) {
 #ifdef _WIN32
     EventRegisterRethinkDB();
@@ -619,7 +616,7 @@ syslog_output_target_t::~syslog_output_target_t() {
 #endif
 }
 
-bool syslog_output_target_t::write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
+bool syslog_output_target_t::write_internal(std::vector<counted_t<audit_log_message_t> > *local_queue,
                                             UNUSED std::string *error_message) {
 #ifdef _WIN32
     for (const auto &msg : *local_queue) {

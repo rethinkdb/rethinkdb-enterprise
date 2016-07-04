@@ -69,7 +69,7 @@ public:
 
     virtual ~audit_log_output_target_t() { }
 
-    virtual bool write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
+    virtual bool write_internal(std::vector<counted_t<audit_log_message_t> > *local_queue,
                                 std::string *error_message) = 0;
 
     void emplace_message(counted_t<audit_log_message_t> msg, bool ignore_capacity);
@@ -85,7 +85,7 @@ private:
 
     spinlock_t queue_mutex;
 
-    std::deque<counted_t<audit_log_message_t> > queue;
+    std::vector<counted_t<audit_log_message_t> > queue;
     size_t queue_size;
     pump_coro_t write_pump;
 
@@ -105,7 +105,7 @@ public:
 
     bool install();
 
-    bool write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
+    bool write_internal(std::vector<counted_t<audit_log_message_t> > *local_queue,
                         std::string *error_out) final;
 private:
     base_path_t filename;
@@ -120,7 +120,7 @@ public:
     ~syslog_output_target_t();
 
 private:
-    bool write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
+    bool write_internal(std::vector<counted_t<audit_log_message_t> > *local_queue,
                         std::string *error_out) final;
 #ifdef _WIN32
 	HANDLE hEventLog;
@@ -135,7 +135,7 @@ public:
 
     ~console_output_target_t() { }
 
-    bool write_internal(std::deque<counted_t<audit_log_message_t> > *local_queue,
+    bool write_internal(std::vector<counted_t<audit_log_message_t> > *local_queue,
                         std::string *error_out) final;
 };
 
