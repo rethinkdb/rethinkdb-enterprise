@@ -358,15 +358,18 @@ void table_query_client_t::dispatch_outdated_read(
             outdated_read_info_t outdated_read_info;
             if (op.shard(region, &outdated_read_info.sharded_op)) {
                 /* If `read_routing_server_ids` is empty the `read_routing_t` was
-                   default constructed we simply store the local relationship if one
-                   exists and all other relationships are stored in `read_routing_rels`.
+                   default-constructed and we simply store the locl relationship in
+                   `read_routing_local_rel` if one exists and all other relationships in
+                   `read_routing_rels`.
 
-                   If `read_routing_server_ids` is not empty we only store the local
-                   relationship if the server is in this set. Every relationship is
-                   stored into either `read_routing_rels` or `try_any_rels` depending on
-                   whether it's in `read_routing_server_ids` respectively. */
-                relationship_t *local_rel = nullptr;
+                   If `read_routing_server_ids` is not empty we split the relationship
+                   and they're stored in either `read_routing_rels` or `try_any_rels`
+                   depending on whether the server it's on is in
+                   `read_routing_server_ids` respectively. The local relationship is
+                   split similarly. */
+                relationship_t *read_routing_local_rel = nullptr;
                 std::vector<relationship_t *> read_routing_rels;
+                relationship_t *try_any_local_rel = nullptr;
                 std::vector<relationship_t *> try_any_rels;
 
                 for (auto *rel : rels) {
@@ -380,10 +383,13 @@ void table_query_client_t::dispatch_outdated_read(
                             /* Either `read_routing_server_ids` is empty or the server
                                is in the set of specified servers. */
                             if (rel->is_local) {
-                                local_rel = rel;
+                                read_routing_local_rel = rel;
                             }
                             read_routing_rels.push_back(rel);
                         } else {
+                            if (rel->is_local) {
+                                try_any_local_rel = rel;
+                            }
                             try_any_rels.push_back(rel);
                         }
                     }
@@ -400,10 +406,14 @@ void table_query_client_t::dispatch_outdated_read(
                      error. */
 
                 relationship_t *chosen_rel = nullptr;
-                if (local_rel != nullptr && op.read_routing.is_prefer_local()) {
-                    chosen_rel = local_rel;
+                if (read_routing_local_rel != nullptr &&
+                        op.read_routing.is_prefer_local()) {
+                    chosen_rel = read_routing_local_rel;
                 } else if (!read_routing_rels.empty()) {
                     chosen_rel = read_routing_rels[randint(read_routing_rels.size())];
+                } else if (try_any_local_rel != nullptr &&
+                        op.read_routing.is_prefer_local()) {
+                    chosen_rel = try_any_local_rel;
                 } else if (op.read_routing.is_try_any() && !try_any_rels.empty()) {
                     chosen_rel = try_any_rels[randint(try_any_rels.size())];
                 }
