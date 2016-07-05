@@ -46,7 +46,7 @@ void report_success() {
 }
 
 
-void report_error(const std::string &msg) {
+void report_error(const std::string msg) {
     coro_t::spawn_on_thread([msg](){
             log_write_issue_tracker->report_error(msg);
         }, log_write_issue_tracker->home_thread());
