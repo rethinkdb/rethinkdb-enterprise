@@ -147,7 +147,7 @@
             <GenerateDebugInformation>true</GenerateDebugInformation>
             <SubSystem>Console</SubSystem>
             <AdditionalDependencies>
-              dbghelp.lib; iphlpapi.lib; WS2_32.lib; winmm.lib;
+              dbghelp.lib; iphlpapi.lib; Shlwapi.lib; WS2_32.lib; winmm.lib;
               curl.lib;
               libprotobuf.lib;
               re2.lib;

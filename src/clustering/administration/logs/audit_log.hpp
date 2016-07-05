@@ -18,10 +18,6 @@
 #include "time.hpp"
 #include "utils.hpp"
 
-#ifdef _WIN32
-#pragma comment(lib, "Shlwapi.lib")
-#endif
-
 const size_t AUDIT_MESSAGE_QUEUE_MESSAGE_LIMIT = 512;
 const size_t AUDIT_MESSAGE_QUEUE_SIZE_LIMIT = 256 * MEGABYTE;
 
