@@ -51,7 +51,8 @@ struct make_sindex_read_t {
                                    require_sindexes_t::NO),
                 sorting_t::UNORDERED),
             profile_bool_t::PROFILE,
-            read_mode_t::SINGLE);
+            read_mode_t::SINGLE,
+            read_routing_t());
     }
 };
 

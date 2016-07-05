@@ -22,9 +22,15 @@ const std::string &real_table_t::get_pkey() const {
 }
 
 ql::datum_t real_table_t::read_row(
-    ql::env_t *env, ql::datum_t pval, read_mode_t read_mode) {
-    read_t read(point_read_t(store_key_t(pval.print_primary())),
-                env->profile(), read_mode);
+        ql::env_t *env,
+        ql::datum_t pval,
+        read_mode_t read_mode,
+        const read_routing_t &read_routing) {
+    read_t read(
+        point_read_t(store_key_t(pval.print_primary())),
+        env->profile(),
+        read_mode,
+        read_routing);
     read_response_t res;
     read_with_profile(env, read, &res);
     point_read_response_t *p_res = boost::get<point_read_response_t>(&res.response);
@@ -39,7 +45,8 @@ scoped_ptr_t<ql::reader_t> real_table_t::read_all_with_sindexes(
         const std::string &table_name,
         const ql::datumspec_t &datumspec,
         sorting_t sorting,
-        read_mode_t read_mode) {
+        read_mode_t read_mode,
+        const read_routing_t &read_routing) {
     // This alternative behavior exists to make eqJoin work.
     if (datumspec.is_empty()) {
         return make_scoped<ql::empty_reader_t>(
@@ -50,7 +57,7 @@ scoped_ptr_t<ql::reader_t> real_table_t::read_all_with_sindexes(
         return make_scoped<ql::rget_reader_t>(
             counted_t<real_table_t>(this),
             ql::primary_readgen_t::make(
-                env, table_name, read_mode, datumspec, sorting));
+                env, table_name, read_mode, read_routing, datumspec, sorting));
     } else {
         return make_scoped<ql::rget_reader_t>(
 	        counted_t<real_table_t>(this),
@@ -58,6 +65,7 @@ scoped_ptr_t<ql::reader_t> real_table_t::read_all_with_sindexes(
                     env,
                     table_name,
                     read_mode,
+                    read_routing,
                     sindex,
                     datumspec,
                     sorting,
@@ -72,7 +80,8 @@ counted_t<ql::datum_stream_t> real_table_t::read_all(
         const std::string &table_name,
         const ql::datumspec_t &datumspec,
         sorting_t sorting,
-        read_mode_t read_mode) {
+        read_mode_t read_mode,
+        const read_routing_t &read_routing) {
     if (datumspec.is_empty()) {
         return make_counted<ql::lazy_datum_stream_t>(
             make_scoped<ql::empty_reader_t>(
@@ -85,14 +94,14 @@ counted_t<ql::datum_stream_t> real_table_t::read_all(
             make_scoped<ql::rget_reader_t>(
 		counted_t<real_table_t>(this),
                 ql::primary_readgen_t::make(
-                    env, table_name, read_mode, datumspec, sorting)),
+                    env, table_name, read_mode, read_routing, datumspec, sorting)),
             bt);
     } else {
         return make_counted<ql::lazy_datum_stream_t>(
             make_scoped<ql::rget_reader_t>(
 	        counted_t<real_table_t>(this),
                 ql::sindex_readgen_t::make(
-                    env, table_name, read_mode, sindex, datumspec, sorting)),
+                    env, table_name, read_mode, read_routing, sindex, datumspec, sorting)),
             bt);
     }
 }
@@ -110,13 +119,14 @@ counted_t<ql::datum_stream_t> real_table_t::read_intersecting(
         ql::backtrace_id_t bt,
         const std::string &table_name,
         read_mode_t read_mode,
+        const read_routing_t &read_routing,
         const ql::datum_t &query_geometry) {
 
     return make_counted<ql::lazy_datum_stream_t>(
         make_scoped<ql::intersecting_reader_t>(
             counted_t<real_table_t>(this),
             ql::intersecting_readgen_t::make(
-                env, table_name, read_mode, sindex, query_geometry)),
+                env, table_name, read_mode, read_routing, sindex, query_geometry)),
         bt);
 }
 
@@ -125,6 +135,7 @@ ql::datum_t real_table_t::read_nearest(
         const std::string &sindex,
         const std::string &table_name,
         read_mode_t read_mode,
+        const read_routing_t &read_routing,
         lon_lat_point_t center,
         double max_dist,
         uint64_t max_results,
@@ -142,7 +153,7 @@ ql::datum_t real_table_t::read_nearest(
         sindex,
         env->get_all_optargs(),
         env->get_user_context());
-    read_t read(geo_read, env->profile(), read_mode);
+    read_t read(geo_read, env->profile(), read_mode, read_routing);
     read_response_t res;
     try {
         namespace_access.get()->read(

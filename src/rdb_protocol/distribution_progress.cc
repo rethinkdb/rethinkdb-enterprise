@@ -18,7 +18,10 @@ distribution_progress_estimator_t::distribution_progress_estimator_t(
 
     distribution_read_t distribution_read(max_depth, result_limit);
     read_t read(
-        distribution_read, profile_bool_t::DONT_PROFILE, read_mode_t::OUTDATED);
+        distribution_read,
+        profile_bool_t::DONT_PROFILE,
+        read_mode_t::OUTDATED,
+        read_routing_t());
     read_response_t read_response;
     read_token_t read_token;
     store->read(
