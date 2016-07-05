@@ -51,7 +51,7 @@ ql::datum_t artificial_table_t::read_row(
         ql::env_t *env,
         ql::datum_t pval,
         UNUSED read_mode_t read_mode,
-        UNUSED read_routing_t const &read_routing) {
+        UNUSED const read_routing_t &read_routing) {
     rcheck_datum(
         !m_check_permissions || env->get_user_context().is_admin(),
         ql::base_exc_t::PERMISSION_ERROR,
@@ -76,7 +76,7 @@ counted_t<ql::datum_stream_t> artificial_table_t::read_all(
         const ql::datumspec_t &datumspec,
         sorting_t sorting,
         UNUSED read_mode_t read_mode,
-        UNUSED read_routing_t const &read_routing) {
+        UNUSED const read_routing_t &read_routing) {
     rcheck_datum(
         !m_check_permissions || env->get_user_context().is_admin(),
         ql::base_exc_t::PERMISSION_ERROR,
@@ -120,7 +120,7 @@ counted_t<ql::datum_stream_t> artificial_table_t::read_intersecting(
         UNUSED ql::backtrace_id_t bt,
         const std::string &table_name,
         UNUSED read_mode_t read_mode,
-        UNUSED read_routing_t const &read_routing,
+        UNUSED const read_routing_t &read_routing,
         UNUSED const ql::datum_t &query_geometry) {
     guarantee(sindex != primary_key, "read_intersecting() should never be called with "
         "the primary index");
@@ -133,7 +133,7 @@ ql::datum_t artificial_table_t::read_nearest(
         const std::string &sindex,
         const std::string &table_name,
         UNUSED read_mode_t read_mode,
-        UNUSED read_routing_t const &read_routing,
+        UNUSED const read_routing_t &read_routing,
         UNUSED lon_lat_point_t center,
         UNUSED double max_dist,
         UNUSED uint64_t max_results,

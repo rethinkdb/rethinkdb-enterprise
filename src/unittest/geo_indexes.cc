@@ -204,7 +204,8 @@ std::vector<nearest_geo_read_response_t::dist_pair_t> perform_get_nearest(
             ql::global_optargs_t(),
             auth::user_context_t(auth::permissions_t(true, false, false, false))),
         profile_bool_t::PROFILE,
-        read_mode_t::SINGLE);
+        read_mode_t::SINGLE,
+        read_routing_t());
     read_response_t response;
 
     cond_t interruptor;
@@ -343,7 +344,8 @@ std::vector<datum_t> perform_get_intersecting(
                 require_sindexes_t::NO),
             query_geometry),
         profile_bool_t::PROFILE,
-        read_mode_t::SINGLE);
+        read_mode_t::SINGLE,
+        read_routing_t());
     read_response_t response;
 
     cond_t interruptor;

@@ -208,11 +208,11 @@ with driver.Cluster(output_folder='.') as cluster:
     assert_read_on_server(
         conn_a,
         {"replicas": "replica_b"},
-        "replica_a")
+        "replica_b")
     assert_read_on_server(
         conn_a,
-        {"replicas": "replica_b", "prefer_local": False},
-        "replica_b")
+        {"replicas": ["replica_a", "replica_b"]},
+        "replica_a")
     assert_read_on_server(
         conn_a,
         {"replica_tags": "replica_tag_b"},
@@ -220,8 +220,8 @@ with driver.Cluster(output_folder='.') as cluster:
     assert_read_on_server(
         conn_a,
         {"replica_tags": "replica_tag_c"},
-        "replica_a")
+        "replica_b")
     assert_read_on_server(
         conn_a,
-        {"replica_tags": "replica_tag_c", "prefer_local": False},
-        "replica_b")
+        {"replica_tags": ["replica_tag_b", "replica_tag_c"]},
+        "replica_a")

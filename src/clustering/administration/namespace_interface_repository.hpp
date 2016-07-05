@@ -60,7 +60,7 @@ private:
     watchable_map_t<directory_key_t, table_query_bcard_t> * const directory;
     multi_table_manager_t *const multi_table_manager;
     rdb_context_t * const ctx;
-    server_config_client_t *m_server_config_client;
+    server_config_client_t *server_config_client;
     table_meta_client_t *m_table_meta_client;
 
     one_per_thread_t<namespace_cache_t> namespace_caches;

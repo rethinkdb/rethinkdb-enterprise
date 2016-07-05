@@ -880,7 +880,7 @@ readgen_t::readgen_t(
     std::string _table_name,
     profile_bool_t _profile,
     read_mode_t _read_mode,
-    read_routing_t const &_read_routing,
+    const read_routing_t &_read_routing,
     sorting_t _sorting)
     : global_optargs(std::move(_global_optargs)),
       m_user_context(std::move(user_context)),
@@ -897,7 +897,7 @@ rget_readgen_t::rget_readgen_t(
     const datumspec_t &_datumspec,
     profile_bool_t _profile,
     read_mode_t _read_mode,
-    read_routing_t const &read_routing,
+    const read_routing_t &read_routing,
     sorting_t _sorting,
     require_sindexes_t _require_sindex_val)
     : readgen_t(
@@ -955,7 +955,7 @@ primary_readgen_t::primary_readgen_t(
     const datumspec_t &_datumspec,
     profile_bool_t _profile,
     read_mode_t _read_mode,
-    read_routing_t const &read_routing,
+    const read_routing_t &read_routing,
     sorting_t _sorting)
     : rget_readgen_t(
         std::move(_global_optargs),
@@ -1042,7 +1042,7 @@ scoped_ptr_t<readgen_t> primary_readgen_t::make(
     env_t *env,
     std::string table_name,
     read_mode_t read_mode,
-    read_routing_t const &read_routing,
+    const read_routing_t &read_routing,
     const datumspec_t &datumspec,
     sorting_t sorting) {
     return scoped_ptr_t<readgen_t>(
@@ -1113,7 +1113,7 @@ sindex_readgen_t::sindex_readgen_t(
     const datumspec_t &_datumspec,
     profile_bool_t _profile,
     read_mode_t _read_mode,
-    read_routing_t const &read_routing,
+    const read_routing_t &read_routing,
     sorting_t _sorting,
     require_sindexes_t _require_sindex_val)
     : rget_readgen_t(
@@ -1133,7 +1133,7 @@ scoped_ptr_t<readgen_t> sindex_readgen_t::make(
     env_t *env,
     std::string table_name,
     read_mode_t read_mode,
-    read_routing_t const &read_routing,
+    const read_routing_t &read_routing,
     const std::string &sindex,
     const datumspec_t &datumspec,
     sorting_t sorting,
@@ -1229,7 +1229,7 @@ intersecting_readgen_t::intersecting_readgen_t(
     const datum_t &_query_geometry,
     profile_bool_t _profile,
     read_mode_t _read_mode,
-    read_routing_t const &read_routing)
+    const read_routing_t &read_routing)
     : readgen_t(
         std::move(_global_optargs),
         std::move(user_context),
@@ -1245,7 +1245,7 @@ scoped_ptr_t<readgen_t> intersecting_readgen_t::make(
     env_t *env,
     std::string _table_name,
     read_mode_t read_mode,
-    read_routing_t const &read_routing,
+    const read_routing_t &read_routing,
     const std::string &sindex,
     const datum_t &query_geometry) {
     return scoped_ptr_t<readgen_t>(

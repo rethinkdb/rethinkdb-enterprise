@@ -17,14 +17,14 @@ table_query_client_t::table_query_client_t(
         watchable_map_t<std::pair<peer_id_t, uuid_u>, table_query_bcard_t> *d,
         multi_table_manager_t *mtm,
         rdb_context_t *_ctx,
-        server_config_client_t *server_config_client,
+        server_config_client_t *_server_config_client,
         table_meta_client_t *table_meta_client)
     : table_id(_table_id),
       mailbox_manager(mm),
       directory(d),
       multi_table_manager(mtm),
       ctx(_ctx),
-      m_server_config_client(server_config_client),
+      server_config_client(_server_config_client),
       m_table_meta_client(table_meta_client),
       start_count(0),
       starting_up(true),
@@ -48,8 +48,11 @@ bool table_query_client_t::check_readiness(table_readiness_t readiness,
         case table_readiness_t::outdated_reads:
             {
                 read_response_t res;
-                read_t r(dummy_read_t(), profile_bool_t::DONT_PROFILE,
-                         read_mode_t::OUTDATED);
+                read_t r(
+                    dummy_read_t(),
+                    profile_bool_t::DONT_PROFILE,
+                    read_mode_t::OUTDATED,
+                    read_routing_t());
                 read(
                     auth::user_context_t(auth::permissions_t(true, false, false, false)),
                     r,
@@ -61,8 +64,11 @@ bool table_query_client_t::check_readiness(table_readiness_t readiness,
         case table_readiness_t::reads:
             {
                 read_response_t res;
-                read_t r(dummy_read_t(), profile_bool_t::DONT_PROFILE,
-                         read_mode_t::SINGLE);
+                read_t r(
+                    dummy_read_t(),
+                    profile_bool_t::DONT_PROFILE,
+                    read_mode_t::SINGLE,
+                    read_routing_t());
                 read(
                     auth::user_context_t(auth::permissions_t(true, false, false, false)),
                     r,
@@ -343,36 +349,39 @@ void table_query_client_t::dispatch_outdated_read(
     }
 
     std::set<server_id_t> read_routing_server_ids = op.read_routing.get_server_ids(
-        m_server_config_client);
+        server_config_client);
 
     std::vector<scoped_ptr_t<outdated_read_info_t>> replicas_to_contact;
-    scoped_ptr_t<outdated_read_info_t> outdated_read_info(new outdated_read_info_t());
     relationships.visit(
         region_t::universe(),
         [&](region_t const &region, std::set<relationship_t *> const &rels) {
-            if (op.shard(region, &outdated_read_info->sharded_op)) {
+            outdated_read_info_t outdated_read_info;
+            if (op.shard(region, &outdated_read_info.sharded_op)) {
+                /* If `read_routing_server_ids` is empty the `read_routing_t` was
+                   default constructed we simply store the local relationship if one
+                   exists and all other relationships are stored in `read_routing_rels`.
+
+                   If `read_routing_server_ids` is not empty we only store the local
+                   relationship if the server is in this set. Every relationship is
+                   stored into either `read_routing_rels` or `try_any_rels` depending on
+                   whether it's in `read_routing_server_ids` respectively. */
                 relationship_t *local_rel = nullptr;
                 std::vector<relationship_t *> read_routing_rels;
                 std::vector<relationship_t *> try_any_rels;
-
-                /* Here the relationships are split up in three groups:
-                   - A local relationship, that is hosted on the server the client is
-                     connected to, if such exist
-                   - The relationships that are hosted on servers specified in the set
-                     `read_routing_server_ids` derived from the `read_routing_t`
-                   - The relationships that are not hosted on the above set of servers */
 
                 for (auto *rel : rels) {
                     // See the comment in `dispatch_immediate_op` about why we need to
                     // check that `region` and the relationship's region are the same.
                     if (rel->direct_bcard != nullptr && rel->region == region) {
-                        if (rel->is_local) {
-                            local_rel = rel;
-                        }
-
-                        if (static_cast<bool>(rel->server_id) &&
+                        if (static_cast<bool>(rel->server_id) && (
+                                read_routing_server_ids.empty() ||
                                 read_routing_server_ids.count(
-                                    rel->server_id.get()) == 1) {
+                                    rel->server_id.get()) == 1)) {
+                            /* Either `read_routing_server_ids` is empty or the server
+                               is in the set of specified servers. */
+                            if (rel->is_local) {
+                                local_rel = rel;
+                            }
                             read_routing_rels.push_back(rel);
                         } else {
                             try_any_rels.push_back(rel);
@@ -406,11 +415,11 @@ void table_query_client_t::dispatch_outdated_read(
                         "no replica is available.", query_state_t::FAILED);
                 }
 
-                outdated_read_info->direct_bcard = chosen_rel->direct_bcard;
-                outdated_read_info->keepalive = auto_drainer_t::lock_t(
+                outdated_read_info.direct_bcard = chosen_rel->direct_bcard;
+                outdated_read_info.keepalive = auto_drainer_t::lock_t(
                     &chosen_rel->drainer);
-                replicas_to_contact.push_back(std::move(outdated_read_info));
-                outdated_read_info.init(new outdated_read_info_t());
+                replicas_to_contact.push_back(
+                    make_scoped<outdated_read_info_t>(outdated_read_info));
             }
         });
 
@@ -574,7 +583,7 @@ void table_query_client_t::relationship_coroutine(
         relationship_record.is_local =
             (key.first == mailbox_manager->get_connectivity_cluster()->get_me());
         relationship_record.server_id =
-            m_server_config_client->get_peer_to_server_map()->get_key(key.first);
+            server_config_client->get_peer_to_server_map()->get_key(key.first);
         relationship_record.region = bcard.region;
 
         scoped_ptr_t<primary_query_client_t> primary_client;

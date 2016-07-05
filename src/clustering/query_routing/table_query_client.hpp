@@ -164,7 +164,7 @@ private:
         *const directory;
     multi_table_manager_t *const multi_table_manager;
     rdb_context_t *const ctx;
-    server_config_client_t *m_server_config_client;
+    server_config_client_t *server_config_client;
     table_meta_client_t *m_table_meta_client;
 
     std::map<std::pair<peer_id_t, uuid_u>, scoped_ptr_t<cond_t> > coro_stoppers;

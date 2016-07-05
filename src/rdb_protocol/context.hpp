@@ -153,7 +153,7 @@ public:
         const ql::datumspec_t &,
         sorting_t,
         read_mode_t,
-        read_routing_t const &) {
+        const read_routing_t &) {
         r_sanity_fail();
     }
 
@@ -161,7 +161,7 @@ public:
         ql::env_t *env,
         ql::datum_t pval,
         read_mode_t read_mode,
-        read_routing_t const &) = 0;
+        const read_routing_t &) = 0;
     virtual counted_t<ql::datum_stream_t> read_all(
         ql::env_t *env,
         const std::string &sindex,
@@ -170,7 +170,7 @@ public:
         const ql::datumspec_t &datumspec,
         sorting_t sorting,
         read_mode_t read_mode,
-        read_routing_t const &) = 0;
+        const read_routing_t &) = 0;
     virtual counted_t<ql::datum_stream_t> read_changes(
         ql::env_t *env,
         const ql::changefeed::streamspec_t &ss,
@@ -181,14 +181,14 @@ public:
         ql::backtrace_id_t bt,
         const std::string &table_name,
         read_mode_t read_mode,
-        read_routing_t const &,
+        const read_routing_t &,
         const ql::datum_t &query_geometry) = 0;
     virtual ql::datum_t read_nearest(
         ql::env_t *env,
         const std::string &sindex,
         const std::string &table_name,
         read_mode_t read_mode,
-        read_routing_t const &,
+        const read_routing_t &,
         lon_lat_point_t center,
         double max_dist,
         uint64_t max_results,

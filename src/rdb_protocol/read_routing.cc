@@ -15,19 +15,12 @@ read_routing_t::read_routing_t()
 }
 
 name_string_t datum_to_name_string(ql::datum_t const &datum) {
-    if (datum.get_type() != ql::datum_t::R_STR) {
-        rfail_datum(
-            ql::base_exc_t::LOGIC,
-            "%s",
-            ("Expected a string, got " + datum.print() + ".").c_str());
-    }
-
     name_string_t name_string;
     if (!name_string.assign_value(datum.as_str())) {
         rfail_datum(
             ql::base_exc_t::LOGIC,
             "%s",
-            ("\"" + datum.print() + "\" contains invalid characters.").c_str());
+            ("\"" + datum.trunc_print() + "\" contains invalid characters.").c_str());
     }
     return name_string;
 }
@@ -56,7 +49,8 @@ std::set<name_string_t> datum_to_set_name_string(ql::datum_t const &datum) {
             rfail_datum(
                 ql::base_exc_t::LOGIC,
                 "%s",
-                ("Expected a string or array, got " + datum.print() + ".").c_str());
+                ("Expected a string or array, got " + datum.trunc_print() +
+                    ".").c_str());
     }
 
     return name_strings;
@@ -65,13 +59,6 @@ std::set<name_string_t> datum_to_set_name_string(ql::datum_t const &datum) {
 read_routing_t::read_routing_t(ql::datum_t const &datum)
     : m_on_unavailable(read_routing_t::on_unavailable_t::TRY_ANY),
       m_prefer_local(true) {
-    if (datum.get_type() != ql::datum_t::R_OBJECT) {
-        rfail_datum(
-            ql::base_exc_t::LOGIC,
-            "%s",
-            ("Expected an object, got " + datum.print() + ".").c_str());
-    }
-
     std::set<std::string> keys;
     for (size_t i = 0; i < datum.obj_size(); ++i) {
         keys.insert(datum.get_pair(i).first.to_std());

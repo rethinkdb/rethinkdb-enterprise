@@ -20,7 +20,8 @@ write_t mock_overwrite(std::string key, std::string value) {
 
 read_t mock_read(std::string key) {
     point_read_t pr((store_key_t(key)));
-    return read_t(pr, profile_bool_t::DONT_PROFILE, read_mode_t::SINGLE);
+    return read_t(
+        pr, profile_bool_t::DONT_PROFILE, read_mode_t::SINGLE, read_routing_t());
 }
 
 std::string mock_parse_read_response(const read_response_t &rr) {

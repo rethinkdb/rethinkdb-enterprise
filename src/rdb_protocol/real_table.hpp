@@ -48,7 +48,7 @@ public:
         ql::env_t *env,
         ql::datum_t pval,
         read_mode_t read_mode,
-        read_routing_t const &read_routing);
+        const read_routing_t &read_routing);
     counted_t<ql::datum_stream_t> read_all(
         ql::env_t *env,
         const std::string &sindex,
@@ -57,7 +57,7 @@ public:
         const ql::datumspec_t &datumspec,
         sorting_t sorting,
         read_mode_t read_mode,
-        read_routing_t const &read_routing);
+        const read_routing_t &read_routing);
     counted_t<ql::datum_stream_t> read_changes(
         ql::env_t *env,
         const ql::changefeed::streamspec_t &ss,
@@ -68,14 +68,14 @@ public:
         ql::backtrace_id_t bt,
         const std::string &table_name,
         read_mode_t read_mode,
-        read_routing_t const &read_routing,
+        const read_routing_t &read_routing,
         const ql::datum_t &query_geometry);
     ql::datum_t read_nearest(
         ql::env_t *env,
         const std::string &sindex,
         const std::string &table_name,
         read_mode_t read_mode,
-        read_routing_t const &read_routing,
+        const read_routing_t &read_routing,
         lon_lat_point_t center,
         double max_dist,
         uint64_t max_results,
@@ -107,7 +107,7 @@ public:
         const ql::datumspec_t &datumspec,
         sorting_t sorting,
         read_mode_t read_mode,
-        read_routing_t const &read_routing) final;
+        const read_routing_t &read_routing) final;
 
     /* These are not part of the `base_table_t` interface. They wrap the `read()`,
     and `write()` methods of the underlying `namespace_interface_t` to add profiling

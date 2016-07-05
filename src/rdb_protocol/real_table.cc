@@ -25,7 +25,7 @@ ql::datum_t real_table_t::read_row(
         ql::env_t *env,
         ql::datum_t pval,
         read_mode_t read_mode,
-        read_routing_t const &read_routing) {
+        const read_routing_t &read_routing) {
     read_t read(
         point_read_t(store_key_t(pval.print_primary())),
         env->profile(),
@@ -46,7 +46,7 @@ scoped_ptr_t<ql::reader_t> real_table_t::read_all_with_sindexes(
         const ql::datumspec_t &datumspec,
         sorting_t sorting,
         read_mode_t read_mode,
-        read_routing_t const &read_routing) {
+        const read_routing_t &read_routing) {
     // This alternative behavior exists to make eqJoin work.
     if (datumspec.is_empty()) {
         return make_scoped<ql::empty_reader_t>(
@@ -81,7 +81,7 @@ counted_t<ql::datum_stream_t> real_table_t::read_all(
         const ql::datumspec_t &datumspec,
         sorting_t sorting,
         read_mode_t read_mode,
-        read_routing_t const &read_routing) {
+        const read_routing_t &read_routing) {
     if (datumspec.is_empty()) {
         return make_counted<ql::lazy_datum_stream_t>(
             make_scoped<ql::empty_reader_t>(
@@ -119,7 +119,7 @@ counted_t<ql::datum_stream_t> real_table_t::read_intersecting(
         ql::backtrace_id_t bt,
         const std::string &table_name,
         read_mode_t read_mode,
-        read_routing_t const &read_routing,
+        const read_routing_t &read_routing,
         const ql::datum_t &query_geometry) {
 
     return make_counted<ql::lazy_datum_stream_t>(
@@ -135,7 +135,7 @@ ql::datum_t real_table_t::read_nearest(
         const std::string &sindex,
         const std::string &table_name,
         read_mode_t read_mode,
-        read_routing_t const &read_routing,
+        const read_routing_t &read_routing,
         lon_lat_point_t center,
         double max_dist,
         uint64_t max_results,

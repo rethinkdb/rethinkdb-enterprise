@@ -512,11 +512,11 @@ struct read_t {
             T &&_read,
             profile_bool_t _profile,
             read_mode_t _read_mode,
-            read_routing_t const &_read_routing = read_routing_t())
+            read_routing_t _read_routing)
         : read(std::forward<T>(_read)),
           profile(_profile),
           read_mode(_read_mode),
-          read_routing(_read_routing) { }
+          read_routing(std::move(_read_routing)) { }
 
     // We use snapshotting for queries that acquire-and-hold large portions of the
     // table, so that they don't block writes.
