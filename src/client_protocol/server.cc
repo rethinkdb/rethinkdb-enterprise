@@ -519,6 +519,16 @@ void query_server_t::handle_conn(const scoped_ptr_t<tcp_conn_descriptor_t> &ncon
             client_addr_port.to_string().c_str(),
             uuid_to_str(conn->get_connection_id().get_uuid()).c_str(),
             error_message.c_str());
+    } else if (disconnected) {
+        auditINF(log_type_t::connection,
+            "A user disconnected from %s, connection id: %s\n",
+            client_addr_port.to_string().c_str(),
+            uuid_to_str(conn->get_connection_id().get_uuid()).c_str());
+    } else if (connection_failed) {
+        auditNTC(log_type_t::connection,
+            "A user FAILED to connect from %s, connection id: %s\n",
+            client_addr_port.to_string().c_str(),
+            uuid_to_str(conn->get_connection_id().get_uuid()).c_str());
     }
 
     if (!error_message.empty()) {

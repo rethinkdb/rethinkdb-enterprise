@@ -46,7 +46,7 @@ void report_success() {
 }
 
 
-void report_error(std::string msg) {
+void report_error(const std::string &msg) {
     coro_t::spawn_on_thread([msg](){
             log_write_issue_tracker->report_error(msg);
         }, log_write_issue_tracker->home_thread());
@@ -138,10 +138,9 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
         }
         enable_auditing_ = false;
     }
-
     if (d.HasParseError()) {
-        logERR("\nAudit Config file Error(offset %u): %s\n",
-               static_cast<unsigned>(d.GetErrorOffset()),
+        logERR("\nAudit Config file Error(offset %lu): %s\n",
+               static_cast<uint64_t>(d.GetErrorOffset()),
                GetParseError_En(d.GetParseError()));
         logERR("Audit logging will be DISABLED.\n");
 
