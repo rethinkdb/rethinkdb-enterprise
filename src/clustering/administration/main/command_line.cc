@@ -2599,6 +2599,14 @@ int main_rethinkdb_run_service(int argc, char *argv[]) {
 void get_rethinkdb_install_service_options(
     std::vector<options::help_section_t> *help_out,
     std::vector<options::option_t> *options_out) {
+
+    options::help_section_t event_logging("Event Logging");
+    options_out->push_back(options::option_t(options::names_t("--install-logging"),
+        options::OPTIONAL_NO_PARAMETER));
+    event_logging.add("--install-logging", "Install the RethinkDB Event provider in "
+                      "Windows Event Viewer, in order to enable the system target "
+                      " for audit logging");
+
     options::help_section_t help("Service options");
     options_out->push_back(options::option_t(options::names_t("--instance-name"),
         options::OPTIONAL));
@@ -2615,6 +2623,7 @@ void get_rethinkdb_install_service_options(
     help.add("--runuser-password password", "password of the user specified in "
         "the `--runuser` option");
     help_out->push_back(help);
+    help_out->push_back(event_logging);
     help_out->push_back(get_config_file_options(options_out));
     help_out->push_back(get_help_options(options_out));
 }
@@ -2633,12 +2642,20 @@ void help_rethinkdb_install_service() {
 void get_rethinkdb_remove_service_options(
     std::vector<options::help_section_t> *help_out,
     std::vector<options::option_t> *options_out) {
+    options::help_section_t event_logging("Event Logging");
+    options_out->push_back(options::option_t(options::names_t("--remove-logging"),
+        options::OPTIONAL_NO_PARAMETER));
+    event_logging.add("--remove-logging", "Uninstall the RethinkDB Event provider in "
+        "Windows Event Viewer. This will disable the system target "
+        " for audit logging");
+
     options::help_section_t help("Service options");
     options_out->push_back(options::option_t(options::names_t("--instance-name"),
         options::OPTIONAL));
     help.add("--instance-name name", "name of the instance that will be removed. "
         "The name must match the one used when installing the service "
         "(default: \"default\")");
+    help_out->push_back(event_logging);
     help_out->push_back(help);
     help_out->push_back(get_help_options(options_out));
 }
@@ -2725,36 +2742,39 @@ int run_and_maybe_elevate(
     }
 }
 
-bool generate_audit_manifest(std::string rethinkdb_path, std::string full_audit_path) {
+bool generate_audit_manifest(std::string rethinkdb_path, std::string *full_audit_path) {
     bool success = true;
     // Install windows event viewer
-    fprintf(stderr, "Generating Manifest for RethinkDB in Windows Event Viewer...\n");
     std::string manifest_text = get_audit_manifest(std::string(rethinkdb_path));
 
-    HANDLE audit_file = CreateFile(full_audit_path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    // Generate temporary file for manifest
+    std::string manifest_path = std::tmpnam(nullptr);
+    printf("Writing Event Viewer manifest to %s\n", manifest_path.c_str());
+    HANDLE audit_file = CreateFile(manifest_path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     if (audit_file == INVALID_FD) {
         fprintf(stderr,
-            "Failed to open audit manifest file '%s': %s",
-            full_audit_path.c_str(),
+            "Failed to open audit manifest file '%s': %s\n",
+            manifest_path.c_str(),
             winerr_string(GetLastError()).c_str());
         success = false;
     }
     bool res = WriteFile(audit_file, manifest_text.c_str(), manifest_text.length(), nullptr, nullptr);
     if (res == 0) {
         fprintf(stderr,
-            "Failed to write to audit manifest file '%s': %s",
-            full_audit_path.c_str(),
+            "Failed to write to audit manifest file '%s': %s\n",
+            manifest_path.c_str(),
             winerr_string(GetLastError()).c_str());
         success = false;
     }
     res = CloseHandle(audit_file);
     if (res == 0) {
         fprintf(stderr,
-            "Failed to close audit manifest file '%s': %s",
-            full_audit_path.c_str(),
+            "Failed to close audit manifest file '%s': %s\n",
+            manifest_path.c_str(),
             winerr_string(GetLastError()).c_str());
         success = false;
     }
+    *full_audit_path = manifest_path;
     return success;
 }
 
@@ -2766,31 +2786,17 @@ bool install_audit_manifest() {
             winerr_string(GetLastError()).c_str());
         return EXIT_FAILURE;
     }
-    TCHAR full_audit_path[MAX_PATH];
-    DWORD full_audit_path_length = GetFullPathName(
-        "RethinkDB.man",
-        MAX_PATH,
-        full_audit_path,
-        nullptr);
-    if (full_audit_path_length >= MAX_PATH) {
-        fprintf(
-            stderr,
-            "The absolute path to the audit manifest file is too long. "
-            "It must be shorter than %zu.\n",
-            static_cast<size_t>(MAX_PATH));
-        return EXIT_FAILURE;
-    } else if (full_audit_path_length == 0) {
-        fprintf(
-            stderr,
-            "Failed to convert the audit manifest file path to an absolute path: %s\n",
-            winerr_string(GetLastError()).c_str());
-        return EXIT_FAILURE;
+    std::string full_audit_path;
+    bool success = generate_audit_manifest(std::string(my_path), &full_audit_path);
+    std::string cmd = "wevtutil im ";
+    cmd += full_audit_path;
+    int res = system(cmd.c_str());
+    if (res == 0) {
+        printf("Successfully installed RethinkDB manifest in Windows Event Log.\n");
+    } else {
+        success = false;
+        fprintf(stderr, "Failed to install RethinkDB manifest in Windows Event Log.\n");
     }
-
-    bool success = generate_audit_manifest(std::string(my_path), std::string(full_audit_path));
-    
-    system("wevtutil im RethinkDB.man");
-    fprintf(stderr, "Successfully installed RethinkDB manifest in Windows Event Log.");
     return success;
 }
 
@@ -2802,33 +2808,16 @@ bool remove_audit_manifest() {
             winerr_string(GetLastError()).c_str());
         return EXIT_FAILURE;
     }
-    TCHAR full_audit_path[MAX_PATH];
-    DWORD full_audit_path_length = GetFullPathName(
-        "RethinkDB.man",
-        MAX_PATH,
-        full_audit_path,
-        nullptr);
-    if (full_audit_path_length >= MAX_PATH) {
-        fprintf(
-            stderr,
-            "The absolute path to the audit manifest file is too long. "
-            "It must be shorter than %zu.\n",
-            static_cast<size_t>(MAX_PATH));
-        return EXIT_FAILURE;
-    } else if (full_audit_path_length == 0) {
-        fprintf(
-            stderr,
-            "Failed to convert the audit manifest file path to an absolute path: %s\n",
-            winerr_string(GetLastError()).c_str());
-        return EXIT_FAILURE;
-    }
-    bool success = generate_audit_manifest(std::string(my_path), std::string(full_audit_path));
+    std::string full_audit_path;
+    bool success = generate_audit_manifest(std::string(my_path), &full_audit_path);
     // wevtutil um
-    bool res = system("wevtutil um RethinkDB.man");
-    if (res != 0) {
-        fprintf(stderr, "Failed to remove RethinkDB in Windows Event Viewer.\n");
+    std::string cmd = "wevtutil um ";
+    cmd += full_audit_path;
+    int res = system(cmd.c_str());
+    if (res == 0) {
+        printf("RethinkDB has been removed from Windows Event Viewer.\n");
     } else {
-        fprintf(stderr, "Done removing.\n");
+        fprintf(stderr, "Failed to remove RethinkDB in Windows Event Viewer.\n");
     }
     return success;
 }
@@ -2851,6 +2840,9 @@ int main_rethinkdb_install_service(int argc, char *argv[]) {
         }
 
         options::verify_option_counts(options, opts);
+
+        const boost::optional<std::string> enable_logging =
+            get_optional_option(opts, "--install-logging");
 
         const boost::optional<std::string> config_file_name_arg =
             get_optional_option(opts, "--config-file");
@@ -2939,8 +2931,9 @@ int main_rethinkdb_install_service(int argc, char *argv[]) {
             if (start_windows_service(service_name)) {
                 fprintf(stderr, "Service `%s` started.\n", service_name.c_str());
             }
-            success &= install_audit_manifest();
-
+            if (enable_logging != boost::none) {
+                success &= install_audit_manifest();
+            }
             return success;
         });
     } catch (const options::named_error_t &ex) {
@@ -2973,6 +2966,9 @@ int main_rethinkdb_remove_service(int argc, char *argv[]) {
 
         options::verify_option_counts(options, opts);
 
+        const boost::optional<std::string> remove_logging =
+            get_optional_option(opts, "--remove-logging");
+
         std::string instance_name = "default";
         const boost::optional<std::string> instance_name_arg =
             get_optional_option(opts, "--instance-name");
@@ -2983,6 +2979,13 @@ int main_rethinkdb_remove_service(int argc, char *argv[]) {
         std::string service_name = "rethinkdb_" + instance_name;
 
         return run_and_maybe_elevate(already_elevated, argc, argv, [&]() {
+            if (remove_logging != boost::none) {
+                int res = remove_audit_manifest();
+                if (res == 5) {
+                    // Access Denied, throw so we elevate
+                    throw windows_privilege_exc_t();
+                }
+            }
             fprintf(stderr, "Stopping service `%s`...\n", service_name.c_str());
             if (stop_windows_service(service_name)) {
                 fprintf(stderr, "Service `%s` stopped.\n", service_name.c_str());
@@ -2992,7 +2995,6 @@ int main_rethinkdb_remove_service(int argc, char *argv[]) {
             if (success) {
                 fprintf(stderr, "Service `%s` removed.\n", service_name.c_str());
             }
-            success &= remove_audit_manifest();
             return success;
         });
     } catch (const options::named_error_t &ex) {

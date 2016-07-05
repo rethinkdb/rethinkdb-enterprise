@@ -133,6 +133,9 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
             logERR("Failed to close audit config file.\n");
         }
     } else {
+        if (config_file_path != "") {
+            logERR("Audit config file not found: %s\n", config_file_path.c_str());
+        }
         enable_auditing_ = false;
     }
 

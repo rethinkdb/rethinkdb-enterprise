@@ -1,0 +1,6 @@
+RethinkDBAudit.h and RethinkDBAuditTEMP.BIN are included as is in the build process.
+
+If you change RethinkDBAudit.man, you need to regenerate the header file and the BIN file with the following commands:
+
+mc RethinkDBAudit.man
+mc -um RethinkDBAudit.man
