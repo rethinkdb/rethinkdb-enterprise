@@ -173,8 +173,11 @@ void run_get_set_test(
     }
 
     {
-        read_t read(point_read_t(store_key_t("a")),
-                    profile_bool_t::PROFILE, read_mode_t::SINGLE);
+        read_t read(
+            point_read_t(store_key_t("a")),
+            profile_bool_t::PROFILE,
+            read_mode_t::SINGLE,
+            read_routing_t());
         read_response_t response;
 
         cond_t interruptor;

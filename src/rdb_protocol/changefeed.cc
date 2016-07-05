@@ -1777,8 +1777,11 @@ real_feed_t::real_feed_t(auto_drainer_t::lock_t _client_lock,
       manager(_manager),
       mailbox(manager, std::bind(&real_feed_t::mailbox_cb, this, ph::_1, ph::_2)) {
     try {
-        read_t read(changefeed_subscribe_t(mailbox.get_address()),
-                    profile_bool_t::DONT_PROFILE, read_mode_t::SINGLE);
+        read_t read(
+            changefeed_subscribe_t(mailbox.get_address()),
+            profile_bool_t::DONT_PROFILE,
+            read_mode_t::SINGLE,
+            read_routing_t());
         read_response_t read_resp;
         ns_if->read(
             auth::user_context_t(auth::permissions_t(true, false, false, false)),
@@ -2051,8 +2054,11 @@ public:
         read_response_t read_resp;
         nif->read(
             env->get_user_context(),
-            read_t(changefeed_point_stamp_t{addr, store_key_t(pkey.print_primary())},
-                   profile_bool_t::DONT_PROFILE, read_mode_t::SINGLE),
+            read_t(
+                changefeed_point_stamp_t{addr, store_key_t(pkey.print_primary())},
+                profile_bool_t::DONT_PROFILE,
+                read_mode_t::SINGLE,
+                read_routing_t()),
             &read_resp,
             order_token_t::ignore,
             env->interruptor);
@@ -2298,9 +2304,11 @@ public:
         // Note that we use the `outer_env`'s interruptor for the read.
         nif->read(
             outer_env->get_user_context(),
-            read_t(changefeed_stamp_t(addr),
-                   profile_bool_t::DONT_PROFILE,
-                   read_mode_t::SINGLE),
+            read_t(
+                changefeed_stamp_t(addr),
+                profile_bool_t::DONT_PROFILE,
+                read_mode_t::SINGLE,
+                read_routing_t()),
             &read_resp, order_token_t::ignore, outer_env->interruptor);
         auto *resp = boost::get<changefeed_stamp_response_t>(&read_resp.response);
         guarantee(resp != nullptr);
@@ -2746,7 +2754,8 @@ public:
                            : region_t(
                                spec.range.datumspec.covering_range().to_primary_keyrange())),
                    profile_bool_t::DONT_PROFILE,
-                   read_mode_t::SINGLE),
+                   read_mode_t::SINGLE,
+                   read_routing_t()),
             &read_resp,
             order_token_t::ignore,
             env->interruptor);
