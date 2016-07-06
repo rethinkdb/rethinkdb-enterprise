@@ -404,21 +404,21 @@ bool handle_help_or_version_option(const std::map<std::string, options::values_t
 void initialize_logfile(const std::map<std::string, options::values_t> &opts,
                         const base_path_t& dirpath) {
     std::string filename;
-    std::string audit_config_filename;
+    std::string log_config_filename;
     if (exists_option(opts, "--log-file")) {
         filename = get_single_option(opts, "--log-file");
     } else {
         filename = dirpath.path() + "/log_file";
     }
 
-    if (exists_option(opts, "--audit-config-file")) {
-        audit_config_filename = get_single_option(opts, "--audit-config-file");
+    if (exists_option(opts, "--log-config-file")) {
+        log_config_filename = get_single_option(opts, "--log-config-file");
     } else {
-        audit_config_filename = "";
+        log_config_filename = "";
     }
 
     // This installs the audit log's output target for the rethinkdb log_file.
-    install_logfile_output_target(dirpath.path(), filename, audit_config_filename);
+    install_logfile_output_target(dirpath.path(), filename, log_config_filename);
     // This installs the old logging system on the same file, to use until
     // the thread pool starts up.
     install_fallback_log_writer(filename);
@@ -1404,9 +1404,9 @@ options::help_section_t get_log_options(std::vector<options::option_t> *options_
                                             options::OPTIONAL_NO_PARAMETER));
     help.add("--no-update-check", "disable checking for available updates.  Also turns "
              "off anonymous usage data collection.");
-    options_out->push_back(options::option_t(options::names_t("--audit-config-file"),
+    options_out->push_back(options::option_t(options::names_t("--log-config-file"),
                                              options::OPTIONAL));
-    help.add("--audit-config-file", "specify the path to the audit logging configuration file.");
+    help.add("--log-config-file", "specify the path to the logging configuration file.");
     return help;
 }
 
