@@ -24,7 +24,7 @@ extern "C" {
 #ifndef MCGEN_DISABLE_PROVIDER_CODE_GENERATION
 #if  !defined(McGenDebug)
 #define McGenDebug(a,b)
-#endif 
+#endif
 
 
 #if !defined(MCGEN_TRACE_CONTEXT_DEF)
@@ -37,7 +37,7 @@ typedef struct _MCGEN_TRACE_CONTEXT
     ULONGLONG              MatchAllKeyword;
     ULONG                  Flags;
     ULONG                  IsEnabled;
-    UCHAR                  Level; 
+    UCHAR                  Level;
     UCHAR                  Reserve;
     USHORT                 EnableBitsCount;
     PULONG                 EnableBitMask;
@@ -128,22 +128,22 @@ Routine Description:
 
 Arguments:
 
-    SourceId - The GUID that identifies the session that enabled the provider. 
+    SourceId - The GUID that identifies the session that enabled the provider.
 
-    ControlCode - The parameter indicates whether the provider 
+    ControlCode - The parameter indicates whether the provider
                   is being enabled or disabled.
 
     Level - The level at which the event is enabled.
 
-    MatchAnyKeyword - The bitmask of keywords that the provider uses to 
+    MatchAnyKeyword - The bitmask of keywords that the provider uses to
                       determine the category of events that it writes.
 
-    MatchAllKeyword - This bitmask additionally restricts the category 
-                      of events that the provider writes. 
+    MatchAllKeyword - This bitmask additionally restricts the category
+                      of events that the provider writes.
 
     FilterData - The provider-defined data.
 
-    CallbackContext - The context of the callback that is defined when the provider 
+    CallbackContext - The context of the callback that is defined when the provider
                       called EtwRegister to register itself.
 
 Remarks:
@@ -189,7 +189,7 @@ Remarks:
                 RtlZeroMemory(Ctx->EnableBitMask, (((Ctx->EnableBitsCount - 1) / 32) + 1) * sizeof(ULONG));
             }
             break;
- 
+
         default:
             break;
     }
@@ -208,7 +208,7 @@ Remarks:
         CallbackContext
         );
 #endif
-   
+
     return;
 }
 
@@ -261,13 +261,13 @@ EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogEmergency = {0x7, 
 //
 // Note on Generate Code from Manifest Windows Vista and above
 //
-//Structures :  are handled as a size and pointer pairs. The macro for the event will have an extra 
+//Structures :  are handled as a size and pointer pairs. The macro for the event will have an extra
 //parameter for the size in bytes of the structure. Make sure that your structures have no extra padding.
 //
-//Strings: There are several cases that can be described in the manifest. For array of variable length 
-//strings, the generated code will take the count of characters for the whole array as an input parameter. 
+//Strings: There are several cases that can be described in the manifest. For array of variable length
+//strings, the generated code will take the count of characters for the whole array as an input parameter.
 //
-//SID No support for array of SIDs, the macro will take a pointer to the SID and use appropriate 
+//SID No support for array of SIDs, the macro will take a pointer to the SID and use appropriate
 //GetLengthSid function to get the length.
 //
 
@@ -277,7 +277,7 @@ EXTERN_C __declspec(selectany) const EVENT_DESCRIPTOR AuditLogEmergency = {0x7, 
 #ifndef MCGEN_DISABLE_PROVIDER_CODE_GENERATION
 
 //
-// Globals 
+// Globals
 //
 
 
@@ -333,7 +333,7 @@ Remarks:
         return ERROR_SUCCESS;
     }
 
-    Error1 = EventRegister( ProviderId, EnableCallback, CallbackContext, RegHandle); 
+    Error1 = EventRegister( ProviderId, EnableCallback, CallbackContext, RegHandle);
 
     return Error1;
 }
@@ -365,9 +365,9 @@ Remarks:
         return ERROR_SUCCESS;
     }
 
-    Error1 = EventUnregister(*RegHandle); 
+    Error1 = EventUnregister(*RegHandle);
     *RegHandle = (REGHANDLE)0;
-    
+
     return Error1;
 }
 #endif
@@ -375,14 +375,14 @@ Remarks:
 // Register with ETW Vista +
 //
 #ifndef EventRegisterRethinkDB
-#define EventRegisterRethinkDB() McGenEventRegister(&RethinkDB, McGenControlCallbackV2, &RethinkDB_Context, &RethinkDBHandle) 
+#define EventRegisterRethinkDB() McGenEventRegister(&RethinkDB, McGenControlCallbackV2, &RethinkDB_Context, &RethinkDBHandle)
 #endif
 
 //
 // UnRegister with ETW
 //
 #ifndef EventUnregisterRethinkDB
-#define EventUnregisterRethinkDB() McGenEventUnregister(&RethinkDBHandle) 
+#define EventUnregisterRethinkDB() McGenEventUnregister(&RethinkDBHandle)
 #endif
 
 //
@@ -492,7 +492,7 @@ Remarks:
 #ifndef MCGEN_DISABLE_PROVIDER_CODE_GENERATION
 
 //
-// Template Functions 
+// Template Functions
 //
 //
 //Template from manifest : AuditLogMessage
@@ -511,7 +511,7 @@ Template_z(
 
     EVENT_DATA_DESCRIPTOR EventData[ARGUMENT_COUNT_z];
 
-    EventDataDescCreate(&EventData[0], 
+    EventDataDescCreate(&EventData[0],
                         (_Arg0 != NULL) ? _Arg0 : L"NULL",
                         (_Arg0 != NULL) ? (ULONG)((wcslen(_Arg0) + 1) * sizeof(WCHAR)) : (ULONG)sizeof(L"NULL"));
 

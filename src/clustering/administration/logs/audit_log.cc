@@ -58,9 +58,9 @@ void log_error_once(std::string msg) {
 }
 
 // Allow specifiying direct file path for logs table logs.
-file_output_target_t::file_output_target_t(bool _respects_enabled_flag, 
-                                           int _min_severity, 
-                                           std::string _filename, 
+file_output_target_t::file_output_target_t(bool _respects_enabled_flag,
+                                           int _min_severity,
+                                           std::string _filename,
                                            bool _is_logfile) :
     audit_log_output_target_t(_respects_enabled_flag, _min_severity),
     is_logfile(_is_logfile) {
@@ -266,7 +266,7 @@ std::string thread_pool_audit_log_writer_t::format_audit_log_message(
     bool for_console = false) {
     std::string msg_string;
 
-    bool ends_in_newline = 
+    bool ends_in_newline =
         msg->message.length() == 0 ? false : msg->message.back() == '\n';
     if (!for_console) {
         msg_string = strprintf("%s %s [%s]: %s%s",
