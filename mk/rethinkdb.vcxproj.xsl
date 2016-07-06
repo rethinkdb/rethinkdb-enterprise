@@ -147,7 +147,7 @@
             <GenerateDebugInformation>true</GenerateDebugInformation>
             <SubSystem>Console</SubSystem>
             <AdditionalDependencies>
-              dbghelp.lib; iphlpapi.lib; WS2_32.lib; winmm.lib;
+              dbghelp.lib; iphlpapi.lib; Shlwapi.lib; WS2_32.lib; winmm.lib;
               curl.lib;
               libprotobuf.lib;
               re2.lib;
@@ -174,6 +174,7 @@
           <ResourceCompile Include="build\bundle_assets\web_assets.rc" />
           <ClCompile Include="build\bundle_assets\web_assets.cc" />
           <ClCompile Include="build\proto\rdb_protocol\ql2.pb.cc" />
+		  <ResourceCompile Include="src\audit\RethinkDBAudit.rc" />
           <ClCompile Include="src\**\*.cc">
             <xsl:choose>
               <xsl:when test="/config/unittest">
@@ -198,6 +199,7 @@
       <ItemGroup>
         <None Include="src\rdb_protocol\ql2.proto" />
         <None Include="src\rdb_protocol\ql2_extensions.proto" />
+		<None Include="src\audit\RethinkDBAuditTEMP.BIN" />
       </ItemGroup>
       <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
       <ImportGroup Label="ExtensionTargets" />

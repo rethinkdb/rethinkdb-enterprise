@@ -38,7 +38,7 @@ private:
     const base_path_t directory_path;
     scoped_fd_t directory_fd;
     bool created;
-    bool initialize_done;
+	bool initialize_done;
 
     DISABLE_COPYING(directory_lock_t);
 };

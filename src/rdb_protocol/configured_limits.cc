@@ -9,6 +9,7 @@
 namespace ql {
 
 configured_limits_t from_optargs(
+    job_id_t job_id,
     rdb_context_t *ctx, signal_t *interruptor, global_optargs_t *args) {
     size_t changefeed_queue_size = configured_limits_t::default_changefeed_queue_size;
     size_t array_size_limit = configured_limits_t::default_array_size_limit;
@@ -24,6 +25,7 @@ configured_limits_t from_optargs(
         bool has_array_limit = args->has_optarg("array_limit");
         if (has_changefeed_queue_size || has_array_limit) {
             env_t env(
+                job_id,
                 ctx,
                 return_empty_normal_batches_t::NO,
                 interruptor,

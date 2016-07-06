@@ -299,6 +299,7 @@ test_rdb_env_t::instance_t::instance_t(test_rdb_env_t &&test_env) :
 {
     env.init(
         new ql::env_t(
+            job_id_t(generate_uuid()),
             &rdb_ctx,
             ql::return_empty_normal_batches_t::NO,
             &interruptor,

@@ -182,7 +182,7 @@ void format_time(struct timespec time, printf_buffer_t *buf, local_or_utc_time_t
 #endif
     }
     buf->appendf(
-        "%04d-%02d-%02dT%02d:%02d:%02d.%09ld",
+        "%04d-%02d-%02dT%02d:%02d:%02d.%09ldZ",
         t.tm_year+1900,
         t.tm_mon+1,
         t.tm_mday,
@@ -203,7 +203,7 @@ bool parse_time(const std::string &str, local_or_utc_time_t zone,
     struct tm t;
     struct timespec time;
     int res1 = sscanf(str.c_str(),
-        "%04d-%02d-%02dT%02d:%02d:%02d.%09ld",
+        "%04d-%02d-%02dT%02d:%02d:%02d.%09ldZ",
         &t.tm_year,
         &t.tm_mon,
         &t.tm_mday,

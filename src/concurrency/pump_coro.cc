@@ -105,7 +105,7 @@ void pump_coro_t::run(auto_drainer_t::lock_t keepalive) {
             break;
         }
     }
-    
+
     --running;
 }
 

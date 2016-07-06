@@ -1,6 +1,8 @@
 // Copyright 2010-2015 RethinkDB, all rights reserved.
 #include "rdb_protocol/query_cache.hpp"
 
+#include "logger.hpp"
+#include "pprint/js_pprint.hpp"
 #include "rdb_protocol/env.hpp"
 #include "rdb_protocol/pseudo_time.hpp"
 #include "rdb_protocol/response.hpp"
@@ -12,13 +14,15 @@ query_cache_t::query_cache_t(
             rdb_context_t *_rdb_ctx,
             ip_and_port_t _client_addr_port,
             return_empty_normal_batches_t _return_empty_normal_batches,
-            auth::user_context_t _user_context) :
+            auth::user_context_t _user_context,
+            uuid_u _connection_id) :
         rdb_ctx(_rdb_ctx),
         client_addr_port(_client_addr_port),
         return_empty_normal_batches(_return_empty_normal_batches),
         user_context(std::move(_user_context)),
         next_query_id(0),
-        oldest_outstanding_query_id(0) {
+        oldest_outstanding_query_id(0),
+        connection_id(_connection_id) {
     auto res = rdb_ctx->get_query_caches_for_this_thread()->insert(this);
     guarantee(res.second);
 }
@@ -48,6 +52,7 @@ scoped_ptr_t<query_cache_t::ref_t> query_cache_t::create(query_params_t *query_p
 
     global_optargs_t global_optargs;
     counted_t<const term_t> term_tree;
+
     try {
         query_params->term_storage->preprocess();
         global_optargs = query_params->term_storage->global_optargs();
@@ -75,9 +80,22 @@ scoped_ptr_t<query_cache_t::ref_t> query_cache_t::create(query_params_t *query_p
                                       std::move(query_params->throttler),
                                       entry.get(),
                                       interruptor));
+
+    // Log query and user, and query id for cross referencing to modified data.
+
+    auditINF(log_type_t::query,
+             "user: %s, connection id: %s, job id: %s, `%s`\n",
+             get_user_context().to_string().c_str(),
+             uuid_to_str(connection_id).c_str(),
+             uuid_to_str(entry->job_id).c_str(),
+             pprint::pretty_print(std::numeric_limits<size_t>::max(),
+                                  pprint::render_as_javascript(
+                                      entry->term_tree->get_src())).c_str());
+
     auto insert_res = queries.insert(std::make_pair(query_params->token,
                                                     std::move(entry)));
     guarantee(insert_res.second);
+
     return ref;
 }
 
@@ -198,6 +216,7 @@ void query_cache_t::ref_t::fill_response(response_t *res) {
 
     try {
         env_t env(
+            job_id_t(entry->job_id),
             query_cache->rdb_ctx,
             query_cache->return_empty_normal_batches,
             &combined_interruptor,

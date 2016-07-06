@@ -174,7 +174,22 @@ private:
             return make_c(node_buffer, lparen, make_nc(std::move(args)), rparen);
         }
         case ql::datum_t::type_t::R_STR:
-            return make_text(strprintf("\"%s\"", d.as_str().to_std().c_str()));
+        {
+            // Strip newlines
+            std::string text = d.as_str().to_std();
+            std::string new_text;
+            new_text.reserve(text.size() + (text.size() / 10) + 2);
+            new_text.push_back('"'); // (>^^)>
+            for (char c : text) {
+                if (c == '\n') {
+                    new_text.append("\\n");
+                } else {
+                    new_text.push_back(c);
+                }
+            }
+            new_text.push_back('"'); // <(^^<)
+            return make_text(new_text);
+        }
         case ql::datum_t::type_t::R_ARRAY:
         {
             std::vector<counted_t<const document_t> > term;
@@ -619,9 +634,9 @@ private:
                                std::move(arglist),
                                sp,
                                lbrace,
-                               uncond_linebreak,
+                               cond_linebreak,
                                std::move(body)),
-                       uncond_linebreak,
+                       cond_linebreak,
                        rbrace);
     }
 

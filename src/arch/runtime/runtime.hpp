@@ -18,6 +18,10 @@ void assert_good_thread_id(threadnum_t thread);
 inline void assert_good_thread_id(UNUSED threadnum_t thread) { }
 #endif
 
+// `call_on_thread` calls `f` on the given thread. If the thread is the current thread, it calls `f`
+// immediately.
+void call_on_thread(threadnum_t thread, const std::function<void()> &f);
+
 // TODO: continue_on_thread() and call_later_on_this_thread are mostly obsolete because of
 // coroutine-based thread switching.
 
