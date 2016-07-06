@@ -178,6 +178,10 @@ std::string scram_authenticator_t::next_message(std::string const &message)
     }
 }
 
+/* virtual */ username_t scram_authenticator_t::get_unauthenticated_username() const {
+    return m_username;
+}
+
 /* static */ std::map<char, std::string> scram_authenticator_t::split_attributes(
         std::string const &message) {
     std::map<char, std::string> attributes;

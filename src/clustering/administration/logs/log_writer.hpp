@@ -11,6 +11,7 @@
 
 #include "arch/io/io_utils.hpp"
 #include "clustering/administration/issues/log_write.hpp"
+#include "clustering/administration/logs/audit_log.hpp"
 #include "containers/scoped.hpp"
 #include "logger.hpp"
 #include "rpc/mailbox/typed.hpp"
@@ -43,7 +44,6 @@ log_level_t parse_log_level(const std::string &s) THROWS_ONLY(log_read_exc_t);
 std::string format_log_message(const log_message_t &m, bool for_console = false);
 log_message_t parse_log_message(const std::string &s) THROWS_ONLY(log_read_exc_t);
 
-
 class file_reverse_reader_t {
 public:
     explicit file_reverse_reader_t(scoped_fd_t &&fd);
@@ -63,6 +63,7 @@ private:
 
 void log_internal(const char *src_file, int src_line, log_level_t level, const char *format, ...) ATTR_FORMAT(printf, 4, 5);
 void vlog_internal(const char *src_file, int src_line, log_level_t level, const char *format, va_list args) ATTR_FORMAT(printf, 4, 0);
+void fallback_log_message(log_level_t level, const std::string &message);
 
 class thread_pool_log_writer_t : public home_thread_mixin_t {
 public:

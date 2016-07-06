@@ -22,7 +22,6 @@
 #include "containers/scoped.hpp"
 #include "thread_local.hpp"
 
-
 RDB_IMPL_SERIALIZABLE_4_SINCE_v1_13(log_message_t, timestamp, uptime, level, message);
 
 // `struct timestamp` has platform-dependent integers, which is not good for
@@ -85,6 +84,9 @@ std::string format_log_level(log_level_t l) {
         case log_level_notice: return "notice";
         case log_level_warn: return "warn";
         case log_level_error: return "error";
+        case log_level_critical: return "critical";
+        case log_level_alert: return "alert";
+        case log_level_emergency: return "emergency";
         default: unreachable();
     }
 }
@@ -204,7 +206,7 @@ log_message_t parse_log_message(const std::string &s) THROWS_ONLY(log_read_exc_t
     {
         std::string errmsg;
         if (!parse_time(std::string(start_timestamp, end_timestamp - start_timestamp),
-                        local_or_utc_time_t::local, &timestamp, &errmsg)) {
+                        local_or_utc_time_t::utc, &timestamp, &errmsg)) {
             throw log_read_exc_t(errmsg);
         }
     }
@@ -324,6 +326,7 @@ public:
     friend class thread_pool_log_writer_t;
 
     log_message_t assemble_log_message(log_level_t level, const std::string &m);
+    void initiate_write(log_level_t level, const std::string &message);
 
 private:
     friend void log_coro(thread_pool_log_writer_t *writer, log_level_t level, const std::string &message, auto_drainer_t::lock_t);
@@ -331,7 +334,6 @@ private:
     friend void vlog_internal(const char *src_file, int src_line, log_level_t level, const char *format, va_list args);
 
     bool write(const log_message_t &msg, std::string *error_out);
-    void initiate_write(log_level_t level, const std::string &message);
     base_path_t filename;
     struct timespec uptime_reference;
     struct timespec last_msg_timestamp;
@@ -372,11 +374,11 @@ void fallback_log_writer_t::install(const std::string &logfile_name) {
     filename = base_path_t(logfile_name);
 
 #ifdef _WIN32
-    HANDLE h = CreateFile(filename.path().c_str(), FILE_APPEND_DATA, FILE_SHARE_READ, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    HANDLE h = CreateFile(filename.path().c_str(), GENERIC_READ | GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
     fd.reset(h);
 
     if (fd.get() == INVALID_FD) {
-        throw std::runtime_error(strprintf("Failed to open log file '%s': %s",
+        throw std::runtime_error(strprintf("Failed to open log file for reading '%s': %s",
                                            logfile_name.c_str(),
                                            winerr_string(GetLastError()).c_str()).c_str());
     }
@@ -455,6 +457,9 @@ bool fallback_log_writer_t::write(const log_message_t &msg, std::string *error_o
         case log_level_debug:
         case log_level_warn:
         case log_level_error:
+        case log_level_critical:
+        case log_level_alert:
+        case log_level_emergency:
             write_stream = stderr;
             filefd = STDERR_FD;
             break;
@@ -647,7 +652,7 @@ void thread_pool_log_writer_t::tail_blocking(
     try {
         scoped_fd_t fd;
 #ifdef _WIN32
-        fd.reset(CreateFile(fallback_log_writer.filename.path().c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL));
+        fd.reset(CreateFile(fallback_log_writer.filename.path().c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL));
         if (fd.get() == INVALID_FD) {
             logWRN("CreateFile failed: %s", winerr_string(GetLastError()).c_str());
             set_errno(EIO);
@@ -714,18 +719,12 @@ void log_internal(const char *src_file, int src_line, log_level_t level, const c
 }
 
 void vlog_internal(UNUSED const char *src_file, UNUSED int src_line, log_level_t level, const char *format, va_list args) {
-    thread_pool_log_writer_t *writer;
-    if ((writer = TLS_get_global_log_writer()) && TLS_get_log_writer_block() == 0) {
-        auto_drainer_t::lock_t lock(TLS_get_global_log_drainer());
+    std::string message = vstrprintf(format, args);
+    fallback_log_writer.initiate_write(level, message);
+}
 
-        std::string message = vstrprintf(format, args);
-        coro_t::spawn_sometime(boost::bind(&log_coro, writer, level, message, lock));
-
-    } else {
-        std::string message = vstrprintf(format, args);
-
-        fallback_log_writer.initiate_write(level, message);
-    }
+void fallback_log_message(log_level_t level, const std::string &message) {
+    fallback_log_writer.initiate_write(level, message);
 }
 
 thread_log_writer_disabler_t::thread_log_writer_disabler_t() {

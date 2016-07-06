@@ -29,7 +29,6 @@ int main(int argc, char *argv[]) {
 
     if (argc == 1 || (argv[1][0] == '-' && subcommands_that_look_like_flags.count(argv[1]) == 0)) {
         return main_rethinkdb_porcelain(argc, argv);
-
     } else {
         std::string subcommand = argv[1];
 
@@ -65,7 +64,6 @@ int main(int argc, char *argv[]) {
             return 0;
 
         } else if (subcommand == "help" || subcommand == "-h" || subcommand == "--help") {
-
             if (argc == 2) {
                 help_rethinkdb_porcelain();
                 return 0;
@@ -99,12 +97,10 @@ int main(int argc, char *argv[]) {
                     printf("ERROR: No help for '%s'\n", subcommand2.c_str());
                     return 1;
                 }
-
             } else {
                 puts("ERROR: Too many parameters to 'rethinkdb help'.  Try 'rethinkdb help [subcommand]'.");
                 return 1;
             }
-
         } else {
             printf("ERROR: Unrecognized subcommand '%s'. Try 'rethinkdb help'.\n", subcommand.c_str());
             return 1;

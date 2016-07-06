@@ -16,6 +16,24 @@ r = utils.import_python_driver()
 
 # --
 
+ZERO = datetime.timedelta(0)
+
+# A UTC class.
+
+class UTC(datetime.tzinfo):
+    """UTC"""
+
+    def utcoffset(self, dt):
+        return ZERO
+
+    def tzname(self, dt):
+        return "UTC"
+
+    def dst(self, dt):
+        return ZERO
+
+utc = UTC()
+
 utils.print_with_time("Starting a server")
 with driver.Process(name="./the_server") as server:
 
@@ -37,9 +55,10 @@ with driver.Process(name="./the_server") as server:
     assert entry["level"] == "info", pprint.pformat(entry)
     assert 0 < entry["uptime"] < 120, pprint.pformat(entry)
     assert entry["server"] in ["the_server", "xyz"], pprint.pformat(entry)
-    now = datetime.datetime.now(entry["timestamp"].tzinfo)
-    assert entry["timestamp"] <= now, pprint.pformat(entry)
-    assert entry["timestamp"] >= now - datetime.timedelta(minutes = 1), pprint.pformat(entry)
+    now = datetime.datetime.now(utc)
+    timestamp = entry["timestamp"]
+    assert timestamp <= now, pprint.pformat(entry)
+    assert timestamp >= now - datetime.timedelta(minutes = 1), pprint.pformat(entry)
 
     utils.print_with_time("Verifying that point gets work")
 

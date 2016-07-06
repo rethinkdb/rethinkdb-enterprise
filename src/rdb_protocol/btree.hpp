@@ -104,6 +104,7 @@ struct btree_point_replacer_t {
 };
 
 batched_replace_response_t rdb_batched_replace(
+    job_id_t job_id,
     const btree_info_t &info,
     scoped_ptr_t<real_superblock_t> *superblock,
     const std::vector<store_key_t> &keys,

@@ -54,7 +54,7 @@ void report_user_error(const char *msg, ...) {
 
     va_list args;
     va_start(args, msg);
-    vlogERR(msg, args);
+    vlogERR(log_type_t::log, msg, args);
     va_end(args);
 }
 
@@ -76,7 +76,7 @@ void report_fatal_error(const char *file, int line, const char *msg, ...) {
     va_list args;
     va_start(args, msg);
     logERR("Error in thread %d in %s at line %d:", get_thread_id().threadnum, file, line);
-    vlogERR(msg, args);
+    vlogERR(log_type_t::log, msg, args);
     va_end(args);
 
     /* Don't print backtraces in valgrind mode because valgrind issues lots of spurious

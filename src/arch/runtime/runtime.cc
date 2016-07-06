@@ -36,6 +36,26 @@ void assert_good_thread_id(threadnum_t thread) {
 }
 #endif
 
+void call_on_thread(threadnum_t thread, const std::function<void()> &f) {
+    assert_good_thread_id(thread);
+    if (thread.threadnum == linux_thread_pool_t::get_thread_id()) {
+        // The thread to continue on is the thread we are already on
+        f();
+    } else {
+        class fun_caller_t : public linux_thread_message_t {
+        public:
+            explicit fun_caller_t(std::function<void()> f_) : f_m(std::move(f_)) { }
+            void on_thread_switch() {
+                f_m();
+                delete this;
+            }
+        private:
+            std::function<void()> f_m;
+        };
+        linux_thread_pool_t::get_thread()->message_hub.store_message_ordered(thread, new fun_caller_t(f));
+    }
+}
+
 bool continue_on_thread(threadnum_t thread, linux_thread_message_t *msg) {
     assert_good_thread_id(thread);
     if (thread.threadnum == linux_thread_pool_t::get_thread_id()) {

@@ -58,4 +58,8 @@ plaintext_authenticator_t::plaintext_authenticator_t(
     }
 }
 
+/* virtual */ username_t plaintext_authenticator_t::get_unauthenticated_username() const {
+    return m_username;
+}
+
 }  // namespace auth
