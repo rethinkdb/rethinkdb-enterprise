@@ -837,7 +837,7 @@ private:
             rfail_target(
                 v,
                 base_exc_t::LOGIC,
-                "The `use_outdated` optarg is no longer supported.  Use the `read_mode`"
+                "The `use_outdated` optarg is no longer supported.  Use the `read_mode` "
                 "optarg instead.");
         }
         if (scoped_ptr_t<val_t> v = args->optarg(env, "read_mode")) {
