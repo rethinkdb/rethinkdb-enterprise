@@ -2678,8 +2678,9 @@ bool was_elevated(int argc, char *argv[]) {
 }
 
 int restart_elevated(int argc, char *argv[]) {
-    SHELLEXECUTEINFO sei = { sizeof(sei) };
+    SHELLEXECUTEINFO sei;
     memset(&sei, 0, sizeof(sei));
+    sei.cbSize = sizeof(sei);
     sei.lpVerb = "runas";
     sei.fMask = SEE_MASK_NOCLOSEPROCESS;
     sei.nShow = SW_NORMAL;

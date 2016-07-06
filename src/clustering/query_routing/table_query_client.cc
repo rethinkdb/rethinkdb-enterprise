@@ -17,12 +17,14 @@ table_query_client_t::table_query_client_t(
         watchable_map_t<std::pair<peer_id_t, uuid_u>, table_query_bcard_t> *d,
         multi_table_manager_t *mtm,
         rdb_context_t *_ctx,
+        server_config_client_t *_server_config_client,
         table_meta_client_t *table_meta_client)
     : table_id(_table_id),
       mailbox_manager(mm),
       directory(d),
       multi_table_manager(mtm),
       ctx(_ctx),
+      server_config_client(_server_config_client),
       m_table_meta_client(table_meta_client),
       start_count(0),
       starting_up(true),
@@ -46,8 +48,11 @@ bool table_query_client_t::check_readiness(table_readiness_t readiness,
         case table_readiness_t::outdated_reads:
             {
                 read_response_t res;
-                read_t r(dummy_read_t(), profile_bool_t::DONT_PROFILE,
-                         read_mode_t::OUTDATED);
+                read_t r(
+                    dummy_read_t(),
+                    profile_bool_t::DONT_PROFILE,
+                    read_mode_t::OUTDATED,
+                    read_routing_t());
                 read(
                     auth::user_context_t(auth::permissions_t(true, false, false, false)),
                     r,
@@ -59,8 +64,11 @@ bool table_query_client_t::check_readiness(table_readiness_t readiness,
         case table_readiness_t::reads:
             {
                 read_response_t res;
-                read_t r(dummy_read_t(), profile_bool_t::DONT_PROFILE,
-                         read_mode_t::SINGLE);
+                read_t r(
+                    dummy_read_t(),
+                    profile_bool_t::DONT_PROFILE,
+                    read_mode_t::SINGLE,
+                    read_routing_t());
                 read(
                     auth::user_context_t(auth::permissions_t(true, false, false, false)),
                     r,
@@ -332,51 +340,88 @@ void table_query_client_t::perform_immediate_op(
 }
 
 void table_query_client_t::dispatch_outdated_read(
-    const read_t &op,
-    read_response_t *response,
-    signal_t *interruptor)
-    THROWS_ONLY(interrupted_exc_t, cannot_perform_query_exc_t) {
+        const read_t &op,
+        read_response_t *response,
+        signal_t *interruptor)
+        THROWS_ONLY(interrupted_exc_t, cannot_perform_query_exc_t) {
+    if (interruptor->is_pulsed()) {
+        throw interrupted_exc_t();
+    }
 
-    if (interruptor->is_pulsed()) throw interrupted_exc_t();
+    std::set<server_id_t> read_routing_server_ids = op.read_routing.get_server_ids(
+        server_config_client);
 
-    std::vector<scoped_ptr_t<outdated_read_info_t> > replicas_to_contact;
+    std::vector<scoped_ptr_t<outdated_read_info_t>> replicas_to_contact;
+    relationships.visit(
+        region_t::universe(),
+        [&](region_t const &region, std::set<relationship_t *> const &rels) {
+            outdated_read_info_t outdated_read_info;
+            if (op.shard(region, &outdated_read_info.sharded_op)) {
+                /* If `read_routing_server_ids` is empty the `read_routing_t` was
+                   default constructed we simply store the local relationship if one
+                   exists and all other relationships are stored in `read_routing_rels`.
 
-    scoped_ptr_t<outdated_read_info_t> new_op_info(new outdated_read_info_t());
-    relationships.visit(region_t::universe(),
-    [&](const region_t &region, const std::set<relationship_t *> &rels) {
-        if (op.shard(region, &new_op_info->sharded_op)) {
-            std::vector<relationship_t *> potential_relationships;
-            relationship_t *chosen_relationship = nullptr;
-            for (auto jt = rels.begin(); jt != rels.end(); ++jt) {
-                // See the comment in `dispatch_immediate_op` about why we need to
-                // check that `region` and the relationship's region are the same.
-                if ((*jt)->direct_bcard != nullptr && (*jt)->region == region) {
-                    if ((*jt)->is_local) {
-                        chosen_relationship = *jt;
-                        break;
-                    } else {
-                        potential_relationships.push_back(*jt);
+                   If `read_routing_server_ids` is not empty we only store the local
+                   relationship if the server is in this set. Every relationship is
+                   stored into either `read_routing_rels` or `try_any_rels` depending on
+                   whether it's in `read_routing_server_ids` respectively. */
+                relationship_t *local_rel = nullptr;
+                std::vector<relationship_t *> read_routing_rels;
+                std::vector<relationship_t *> try_any_rels;
+
+                for (auto *rel : rels) {
+                    // See the comment in `dispatch_immediate_op` about why we need to
+                    // check that `region` and the relationship's region are the same.
+                    if (rel->direct_bcard != nullptr && rel->region == region) {
+                        if (static_cast<bool>(rel->server_id) && (
+                                read_routing_server_ids.empty() ||
+                                read_routing_server_ids.count(
+                                    rel->server_id.get()) == 1)) {
+                            /* Either `read_routing_server_ids` is empty or the server
+                               is in the set of specified servers. */
+                            if (rel->is_local) {
+                                local_rel = rel;
+                            }
+                            read_routing_rels.push_back(rel);
+                        } else {
+                            try_any_rels.push_back(rel);
+                        }
                     }
                 }
+
+                /* Here we choose a relationship from the above groups, which is done
+                   as follows:
+                   - If a local relationship exists and the `read_routing_t` prefers
+                     local relationships, this is selected.
+                   - If no location relationship exists one is selected from the set
+                     derived from `read_routing_server_ids`, if one exists.
+                   - If the `read_routing_t` specifies that we should try any server if
+                     one hasn't been found at this point we do so, otherwise we issue an
+                     error. */
+
+                relationship_t *chosen_rel = nullptr;
+                if (local_rel != nullptr && op.read_routing.is_prefer_local()) {
+                    chosen_rel = local_rel;
+                } else if (!read_routing_rels.empty()) {
+                    chosen_rel = read_routing_rels[randint(read_routing_rels.size())];
+                } else if (op.read_routing.is_try_any() && !try_any_rels.empty()) {
+                    chosen_rel = try_any_rels[randint(try_any_rels.size())];
+                }
+
+                if (chosen_rel == nullptr) {
+                    /* Don't bother looking for masters; if there are no direct
+                       readers, there won't be any masters either. */
+                    throw cannot_perform_query_exc_t(
+                        "no replica is available.", query_state_t::FAILED);
+                }
+
+                outdated_read_info.direct_bcard = chosen_rel->direct_bcard;
+                outdated_read_info.keepalive = auto_drainer_t::lock_t(
+                    &chosen_rel->drainer);
+                replicas_to_contact.push_back(
+                    make_scoped<outdated_read_info_t>(outdated_read_info));
             }
-            if (!chosen_relationship && !potential_relationships.empty()) {
-                chosen_relationship
-                    = potential_relationships[randint(potential_relationships.size())];
-            }
-            if (!chosen_relationship) {
-                /* Don't bother looking for masters; if there are no direct
-                   readers, there won't be any masters either. */
-                throw cannot_perform_query_exc_t(
-                    "no replica is available",
-                    query_state_t::FAILED);
-            }
-            new_op_info->direct_bcard = chosen_relationship->direct_bcard;
-            new_op_info->keepalive = auto_drainer_t::lock_t(
-                &chosen_relationship->drainer);
-            replicas_to_contact.push_back(std::move(new_op_info));
-            new_op_info.init(new outdated_read_info_t());
-        }
-    });
+        });
 
     std::vector<read_response_t> results(replicas_to_contact.size());
     std::vector<std::string> failures(replicas_to_contact.size());
@@ -537,6 +582,8 @@ void table_query_client_t::relationship_coroutine(
         relationship_t relationship_record;
         relationship_record.is_local =
             (key.first == mailbox_manager->get_connectivity_cluster()->get_me());
+        relationship_record.server_id =
+            server_config_client->get_peer_to_server_map()->get_key(key.first);
         relationship_record.region = bcard.region;
 
         scoped_ptr_t<primary_query_client_t> primary_client;

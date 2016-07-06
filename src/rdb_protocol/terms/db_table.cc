@@ -11,6 +11,7 @@
 #include "rdb_protocol/datum_string.hpp"
 #include "rdb_protocol/op.hpp"
 #include "rdb_protocol/pseudo_geometry.hpp"
+#include "rdb_protocol/read_routing.hpp"
 #include "rdb_protocol/terms/writes.hpp"
 
 namespace ql {
@@ -823,15 +824,21 @@ private:
 class table_term_t : public op_term_t {
 public:
     table_term_t(compile_env_t *env, const raw_term_t &term)
-        : op_term_t(env, term, argspec_t(1, 2),
-                    optargspec_t({"read_mode", "use_outdated", "identifier_format"})) { }
+        : op_term_t(
+            env,
+            term,
+            argspec_t(1, 2),
+            optargspec_t(
+                {"use_outdated", "read_mode", "read_routing", "identifier_format"})) { }
 private:
     virtual scoped_ptr_t<val_t> eval_impl(scope_env_t *env, args_t *args, eval_flags_t) const {
         read_mode_t read_mode = read_mode_t::SINGLE;
         if (scoped_ptr_t<val_t> v = args->optarg(env, "use_outdated")) {
-            rfail(base_exc_t::LOGIC, "%s",
-                  "The `use_outdated` optarg is no longer supported.  "
-                  "Use the `read_mode` optarg instead.");
+            rfail_target(
+                v,
+                base_exc_t::LOGIC,
+                "The `use_outdated` optarg is no longer supported.  Use the `read_mode`"
+                "optarg instead.");
         }
         if (scoped_ptr_t<val_t> v = args->optarg(env, "read_mode")) {
             const datum_string_t &str = v->as_str();
@@ -844,10 +851,24 @@ private:
             } else if (str == "_debug_direct") {
                 read_mode = read_mode_t::DEBUG_DIRECT;
             } else {
-                rfail(base_exc_t::LOGIC, "Read mode `%s` unrecognized (options "
-                      "are \"majority\", \"single\", and \"outdated\").",
-                      str.to_std().c_str());
+                rfail_target(
+                    v,
+                    base_exc_t::LOGIC,
+                    "Read mode `%s` unrecognized (options are \"majority\", \"single\", "
+                    "and \"outdated\").",
+                    str.to_std().c_str());
             }
+        }
+
+        read_routing_t read_routing;
+        if (scoped_ptr_t<val_t> v = args->optarg(env, "read_routing")) {
+            if (read_mode != read_mode_t::OUTDATED) {
+                rfail_target(
+                    v,
+                    base_exc_t::LOGIC,
+                    "The `read_routing` option can only be specified for the `\"outdated\"` read mode.");
+            }
+            read_routing = read_routing_t(v->as_datum());
         }
 
         auto identifier_format =
@@ -885,7 +906,12 @@ private:
             REQL_RETHROW(error);
         }
         return new_val(make_counted<table_t>(
-            std::move(table), db, table_name.str(), read_mode, backtrace()));
+            std::move(table),
+            db,
+            table_name.str(),
+            read_mode,
+            std::move(read_routing),
+            backtrace()));
     }
     virtual deterministic_t is_deterministic() const { return deterministic_t::no; }
     virtual const char *name() const { return "table"; }

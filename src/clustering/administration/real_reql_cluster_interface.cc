@@ -13,6 +13,7 @@
 #include "concurrency/cross_thread_signal.hpp"
 #include "rdb_protocol/artificial_table/artificial_table.hpp"
 #include "rdb_protocol/env.hpp"
+#include "rdb_protocol/read_routing.hpp"
 #include "rdb_protocol/table_common.hpp"
 #include "rdb_protocol/val.hpp"
 #include "rpc/semilattice/watchable.hpp"
@@ -45,6 +46,7 @@ real_reql_cluster_interface_t::real_reql_cluster_interface_t(
         table_query_directory,
         multi_table_manager,
         m_rdb_context,
+        server_config_client,
         m_table_meta_client),
     m_changefeed_client(
         m_mailbox_manager,
@@ -1400,7 +1402,10 @@ void real_reql_cluster_interface_t::make_single_selection(
         counted_t<base_table_t>(new artificial_table_t(table_backend, false)),
         make_counted<const ql::db_t>(
             nil_uuid(), name_string_t::guarantee_valid("rethinkdb")),
-        table_name.str(), read_mode_t::SINGLE, bt);
+        table_name.str(),
+        read_mode_t::SINGLE,
+        read_routing_t(),
+        bt);
     *selection_out = make_scoped<ql::val_t>(
         ql::single_selection_t::from_row(env, bt, table, row),
         bt);

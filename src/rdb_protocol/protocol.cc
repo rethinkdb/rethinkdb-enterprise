@@ -629,7 +629,7 @@ bool read_t::shard(const hash_region_t<key_range_t> &region,
                    read_t *read_out) const THROWS_NOTHING {
     read_t::variant_t payload;
     bool result = boost::apply_visitor(rdb_r_shard_visitor_t(&region, &payload), read);
-    *read_out = read_t(payload, profile, read_mode);
+    *read_out = read_t(payload, profile, read_mode, read_routing);
     return result;
 }
 
@@ -1521,7 +1521,7 @@ RDB_IMPL_SERIALIZABLE_8_FOR_CLUSTER(
 RDB_IMPL_SERIALIZABLE_2_FOR_CLUSTER(changefeed_stamp_t, addr, region);
 RDB_IMPL_SERIALIZABLE_2_FOR_CLUSTER(changefeed_point_stamp_t, addr, key);
 
-RDB_IMPL_SERIALIZABLE_3_FOR_CLUSTER(read_t, read, profile, read_mode);
+RDB_IMPL_SERIALIZABLE_4_FOR_CLUSTER(read_t, read, profile, read_mode, read_routing);
 
 RDB_IMPL_SERIALIZABLE_1_FOR_CLUSTER(point_write_response_t, result);
 RDB_IMPL_SERIALIZABLE_1_FOR_CLUSTER(point_delete_response_t, result);

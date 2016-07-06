@@ -492,6 +492,7 @@ struct read_t {
     variant_t read;
     profile_bool_t profile;
     read_mode_t read_mode;
+    read_routing_t read_routing;
 
     region_t get_region() const THROWS_NOTHING;
     // Returns true if the read has any operation for this region.  Returns
@@ -505,9 +506,17 @@ struct read_t {
         THROWS_ONLY(interrupted_exc_t);
 
     read_t() : profile(profile_bool_t::DONT_PROFILE), read_mode(read_mode_t::SINGLE) { }
+
     template<class T>
-    read_t(T &&_read, profile_bool_t _profile, read_mode_t _read_mode)
-        : read(std::forward<T>(_read)), profile(_profile), read_mode(_read_mode) { }
+    read_t(
+            T &&_read,
+            profile_bool_t _profile,
+            read_mode_t _read_mode,
+            read_routing_t _read_routing)
+        : read(std::forward<T>(_read)),
+          profile(_profile),
+          read_mode(_read_mode),
+          read_routing(std::move(_read_routing)) { }
 
     // We use snapshotting for queries that acquire-and-hold large portions of the
     // table, so that they don't block writes.

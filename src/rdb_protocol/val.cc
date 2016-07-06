@@ -180,17 +180,22 @@ counted_t<datum_stream_t> table_t::as_seq(
         display_name(),
         datumspec_t(bounds),
         sorting,
-        read_mode);
+        read_mode,
+        read_routing);
 }
 
 table_t::table_t(counted_t<base_table_t> &&_tbl,
-                 counted_t<const db_t> _db, const std::string &_name,
-                 read_mode_t _read_mode, backtrace_id_t _bt)
+                 counted_t<const db_t> _db,
+                 const std::string &_name,
+                 read_mode_t _read_mode,
+                 read_routing_t _read_routing,
+                 backtrace_id_t _bt)
     : bt_rcheckable_t(_bt),
       db(_db),
       name(_name),
       tbl(std::move(_tbl)),
-      read_mode(_read_mode)
+      read_mode(_read_mode),
+      read_routing(std::move(_read_routing))
 { }
 
 datum_t table_t::make_error_datum(const base_exc_t &exception) {
@@ -470,7 +475,7 @@ const std::string &table_t::get_pkey() const {
 }
 
 datum_t table_t::get_row(env_t *env, datum_t pval) {
-    return tbl->read_row(env, pval, read_mode);
+    return tbl->read_row(env, pval, read_mode, read_routing);
 }
 
 scoped_ptr_t<reader_t> table_t::get_all_with_sindexes(
@@ -485,7 +490,8 @@ scoped_ptr_t<reader_t> table_t::get_all_with_sindexes(
         display_name(),
         datumspec,
         sorting_t::UNORDERED,
-        read_mode);
+        read_mode,
+        read_routing);
 }
 
 counted_t<datum_stream_t> table_t::get_all(
@@ -500,7 +506,8 @@ counted_t<datum_stream_t> table_t::get_all(
         display_name(),
         datumspec,
         sorting_t::UNORDERED,
-        read_mode);
+        read_mode,
+        read_routing);
 }
 
 counted_t<datum_stream_t> table_t::get_intersecting(
@@ -514,6 +521,7 @@ counted_t<datum_stream_t> table_t::get_intersecting(
         parent->backtrace(),
         display_name(),
         read_mode,
+        read_routing,
         query_geometry);
 }
 
@@ -531,6 +539,7 @@ datum_t table_t::get_nearest(
         new_sindex_id,
         display_name(),
         read_mode,
+        read_routing,
         center,
         max_dist,
         max_results,

@@ -9,7 +9,11 @@
 #include <vector>
 #include <set>
 
+#include "errors.hpp"
+#include <boost/optional.hpp>
+
 #include "clustering/administration/auth/permission_error.hpp"
+#include "clustering/administration/servers/config_client.hpp"
 #include "clustering/query_routing/metadata.hpp"
 #include "containers/clone_ptr.hpp"
 #include "concurrency/fifo_enforcer.hpp"
@@ -34,6 +38,7 @@ public:
                 *directory,
             multi_table_manager_t *multi_table_manager,
             rdb_context_t *,
+            server_config_client_t *server_config_client,
             table_meta_client_t *table_meta_client);
 
     /* Returns a signal that will be pulsed when we have either successfully connected
@@ -71,6 +76,7 @@ private:
     class relationship_t {
     public:
         bool is_local;
+        boost::optional<server_id_t> server_id;
         region_t region;
         primary_query_client_t *primary_client;
         const direct_query_bcard_t *direct_bcard;
@@ -158,6 +164,7 @@ private:
         *const directory;
     multi_table_manager_t *const multi_table_manager;
     rdb_context_t *const ctx;
+    server_config_client_t *server_config_client;
     table_meta_client_t *m_table_meta_client;
 
     std::map<std::pair<peer_id_t, uuid_u>, scoped_ptr_t<cond_t> > coro_stoppers;

@@ -51,13 +51,14 @@ namespace_repo_t::namespace_repo_t(
         watchable_map_t<directory_key_t, table_query_bcard_t> *_directory,
         multi_table_manager_t *_multi_table_manager,
         rdb_context_t *_ctx,
+        server_config_client_t *_server_config_client,
         table_meta_client_t *table_meta_client)
     : mailbox_manager(_mailbox_manager),
       directory(_directory),
       multi_table_manager(_multi_table_manager),
       ctx(_ctx),
-      m_table_meta_client(table_meta_client)
-      { }
+      server_config_client(_server_config_client),
+      m_table_meta_client(table_meta_client) { }
 
 namespace_repo_t::~namespace_repo_t() { }
 
@@ -135,6 +136,7 @@ void namespace_repo_t::create_and_destroy_namespace_interface(
         directory_converter_on_this_thread.get_watchable(),
         multi_table_manager,
         ctx,
+        server_config_client,
         m_table_meta_client);
 
     try {

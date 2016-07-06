@@ -97,7 +97,11 @@ void fetch_distribution(
     static const int depth = 2;
     static const int limit = 128;
     distribution_read_t inner_read(depth, limit);
-    read_t read(inner_read, profile_bool_t::DONT_PROFILE, read_mode_t::OUTDATED);
+    read_t read(
+        inner_read,
+        profile_bool_t::DONT_PROFILE,
+        read_mode_t::OUTDATED,
+        read_routing_t());
     read_response_t resp;
     try {
         ns_if_access.get()->read(
