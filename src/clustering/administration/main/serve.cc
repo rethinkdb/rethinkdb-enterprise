@@ -11,6 +11,7 @@
 #include "clustering/administration/http/server.hpp"
 #include "clustering/administration/issues/local.hpp"
 #include "clustering/administration/jobs/manager.hpp"
+#include "clustering/administration/logs/audit_log.hpp"
 #include "clustering/administration/logs/log_writer.hpp"
 #include "clustering/administration/main/initial_join.hpp"
 #include "clustering/administration/main/ports.hpp"
@@ -139,7 +140,7 @@ bool do_serve(io_backender_t *io_backender,
         }
 
 #ifndef NDEBUG
-        logNTC("Our server ID is %s", server_id.print().c_str());
+        logNTC("Our server ID is %s\n", server_id.print().c_str());
 #endif
 
         /* The `connectivity_cluster_t` maintains TCP connections to other servers in the
@@ -201,6 +202,9 @@ bool do_serve(io_backender_t *io_backender,
             server_config_server.init(new server_config_server_t(
                 &mailbox_manager, metadata_file));
         }
+
+        thread_pool_audit_log_writer_t audit_writer(
+            log_writer.get_log_write_issue_tracker());
 
         /* `server_config_client` is used to get a list of all connected servers and
         request information about their names and tags. It can also be used to change

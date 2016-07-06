@@ -2013,6 +2013,7 @@ union_datum_stream_t::union_datum_stream_t(
         disabler = make_scoped<profile::disabler_t>(trace.get());
     }
     coro_env = make_scoped<env_t>(
+        env->job_id,
         env->get_rdb_ctx(),
         env->return_empty_normal_batches,
         drainer.get_drain_signal(),

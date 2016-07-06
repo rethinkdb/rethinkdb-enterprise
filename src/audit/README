@@ -1,0 +1,10 @@
+RethinkDBAudit.h and RethinkDBAuditTEMP.BIN are included as is in the build process.
+
+If you change RethinkDBAudit.man, you need to regenerate the header file and the BIN file with the following commands:
+
+mc RethinkDBAudit.man
+mc -um RethinkDBAudit.man
+
+Because one of our log levels is "Error", the RethinkDBAudit.h file that the Windows Message Compiler generates will have a naming conflict.
+To fix this, the local variables named "Error" in the file will need to be renamed.
+

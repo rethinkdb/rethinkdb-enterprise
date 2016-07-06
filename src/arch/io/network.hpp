@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "arch/compiler.hpp"
+#include "clustering/administration/logs/connection_id_t.hpp"
 #include "config/args.hpp"
 #include "concurrency/interruptor.hpp"
 #include "containers/lazy_erase_vector.hpp"
@@ -42,6 +43,7 @@
 #include "concurrency/coro_pool.hpp"
 #include "concurrency/exponential_backoff.hpp"
 #include "containers/intrusive_list.hpp"
+#include "containers/uuid.hpp"
 #include "crypto/error.hpp"
 #include "perfmon/types.hpp"
 
@@ -173,6 +175,9 @@ public:
         return event_watcher.get();
     }
 
+    connection_id_t get_connection_id() {
+        return connection_id;
+    }
 protected:
 
     void on_shutdown_read();
@@ -186,6 +191,8 @@ protected:
 
     /* These are pulsed if and only if the read/write end of the connection has been closed. */
     cond_t read_closed, write_closed;
+
+    connection_id_t connection_id;
 
 private:
 

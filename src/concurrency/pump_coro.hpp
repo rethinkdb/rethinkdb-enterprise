@@ -18,7 +18,7 @@ disk every time it changes.
 careful about your assumptions on how flushing works when providing `max_callbacks` > 1.
 */
 
-class pump_coro_t : public home_thread_mixin_debug_only_t{
+class pump_coro_t : public home_thread_mixin_t{
 public:
     /* The constructor specifies which callback should be called. The callback may block.
     If the `pump_coro_t` is destroyed its interruptor will be pulsed and it may throw

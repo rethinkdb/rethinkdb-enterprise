@@ -22,6 +22,7 @@ public:
             THROWS_ONLY(authentication_error_t);
     /* virtual */ username_t get_authenticated_username() const
             THROWS_ONLY(authentication_error_t);
+    /* virtual */ username_t get_unauthenticated_username() const;
 
 private:
     username_t m_username;

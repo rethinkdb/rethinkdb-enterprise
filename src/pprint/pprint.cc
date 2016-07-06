@@ -54,7 +54,7 @@ class text_t : public document_t {
 public:
     std::string text;
 
-    explicit text_t(const std::string &_str) : text(_str) {}
+    explicit text_t(const std::string &_str) : text(_str) { }
     explicit text_t(std::string &&_str) : text(std::move(_str)) {}
     ~text_t() override {}
 

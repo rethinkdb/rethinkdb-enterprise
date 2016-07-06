@@ -9,7 +9,7 @@
 // (it should get defined by Winnt.h which is part of Windows.h)
 #define WIN_ACCESS_DELETE (0x00010000L)
 
-DWORD windows_service_control_handler(
+DWORD WINAPI windows_service_control_handler(
         DWORD dw_control,
         DWORD dw_event_type,
         LPVOID,

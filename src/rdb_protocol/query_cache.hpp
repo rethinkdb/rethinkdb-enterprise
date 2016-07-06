@@ -38,7 +38,8 @@ public:
     query_cache_t(rdb_context_t *_rdb_ctx,
                   ip_and_port_t _client_addr_port,
                   return_empty_normal_batches_t _return_empty_normal_batches,
-                  auth::user_context_t _user_context);
+                  auth::user_context_t _user_context,
+                  uuid_u connection_id);
     ~query_cache_t();
 
     // A reference to a given query in the cache - no more than one reference may be
@@ -151,6 +152,8 @@ private:
     uint64_t next_query_id;
     intrusive_list_t<query_params_t::query_id_t> outstanding_query_ids;
     watchable_variable_t<uint64_t> oldest_outstanding_query_id;
+
+    uuid_u connection_id;
 
     DISABLE_COPYING(query_cache_t);
 };

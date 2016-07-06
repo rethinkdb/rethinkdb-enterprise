@@ -61,7 +61,6 @@ extern const counted_t<const document_t> cond_linebreak;
 extern const counted_t<const document_t> uncond_linebreak;
 extern const counted_t<const document_t> dot_linebreak;
 
-
 // Documents separated by commas and then a `br`.
 //
 // Think `1, 2, 3`.
