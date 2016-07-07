@@ -178,7 +178,8 @@ std::string scram_authenticator_t::next_message(std::string const &message)
     }
 }
 
-/* virtual */ username_t scram_authenticator_t::get_unauthenticated_username() const {
+/* virtual */ username_t scram_authenticator_t::get_unauthenticated_username() const
+        THROWS_NOTHING {
     return m_username;
 }
 

@@ -58,7 +58,8 @@ plaintext_authenticator_t::plaintext_authenticator_t(
     }
 }
 
-/* virtual */ username_t plaintext_authenticator_t::get_unauthenticated_username() const {
+/* virtual */ username_t plaintext_authenticator_t::get_unauthenticated_username() const
+        THROWS_NOTHING {
     return m_username;
 }
 
