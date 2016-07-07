@@ -34,6 +34,7 @@
 #include "arch/io/disk.hpp"
 #include "arch/runtime/coroutines.hpp"
 #include "arch/runtime/runtime.hpp"
+#include "clustering/administration/logs/audit_log.hpp"
 #include "clustering/administration/main/directory_lock.hpp"
 #include "config/args.hpp"
 #include "containers/archive/archive.hpp"

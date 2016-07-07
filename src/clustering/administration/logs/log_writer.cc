@@ -116,7 +116,7 @@ std::string format_log_message(const log_message_t &m, bool for_console) {
     std::string prepend;
     if (!for_console) {
         prepend = strprintf("%s %ld.%06llds %s: ",
-                            format_time(m.timestamp, local_or_utc_time_t::local).c_str(),
+                            format_time(m.timestamp, local_or_utc_time_t::utc).c_str(),
                             m.uptime.tv_sec,
                             m.uptime.tv_nsec / THOUSAND,
                             format_log_level(m.level).c_str());

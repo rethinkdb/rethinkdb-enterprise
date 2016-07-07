@@ -61,6 +61,7 @@ public:
     audit_log_output_target_t(bool _respects_enabled_flag, int _min_severity) :
         min_severity(_min_severity),
         respects_enabled_flag(_respects_enabled_flag),
+        queue_size(0),
         write_pump([&] (signal_t*) {flush();}) { }
 
     virtual ~audit_log_output_target_t() { }
@@ -125,7 +126,7 @@ private:
 
 class console_output_target_t : public audit_log_output_target_t {
 public:
-    console_output_target_t(int _min_severity) :
+    explicit console_output_target_t(int _min_severity) :
         audit_log_output_target_t( false, _min_severity) {
     }
 
@@ -142,7 +143,7 @@ void audit_log_internal(log_type_t type, log_level_t level, const char *format, 
 class thread_pool_audit_log_writer_t : public home_thread_mixin_t {
 public:
     static std::string config_file_path;
-    thread_pool_audit_log_writer_t(log_write_issue_tracker_t *log_tracker);
+    explicit thread_pool_audit_log_writer_t(log_write_issue_tracker_t *log_tracker);
     ~thread_pool_audit_log_writer_t();
 
     static std::string format_audit_log_message(counted_t<audit_log_message_t> msg, bool for_console);
