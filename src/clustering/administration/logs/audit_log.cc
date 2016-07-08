@@ -97,24 +97,29 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
 
     log_write_issue_tracker = log_tracker;
 
+    {
+        auto logfile = make_scoped<file_output_target_t>(
+            false,
+            0,
+            file_output_target_t::logfilename,
+            true);
+
+        logfile->install();
+        // We only want this target to save logs.
+        logfile->tags.push_back(log_type_t::log);
+
+        priority_routing.push_back(std::move(logfile));
+    }
+
+    {
+        auto console_target =
+            make_scoped<console_output_target_t>(log_level_t::log_level_notice);
+        priority_routing.push_back(std::move(console_target));
+    }
+
     pmap(
         get_num_threads(),
         boost::bind(&thread_pool_audit_log_writer_t::install_on_thread, this, _1));
-
-    auto logfile =
-        make_scoped<file_output_target_t>(false,
-                                          0,
-                                          file_output_target_t::logfilename,
-                                          true);
-    logfile->install();
-    // We only want this target to save logs.
-    logfile->tags.push_back(log_type_t::log);
-
-    priority_routing.push_back(std::move(logfile));
-
-    auto console_target =
-        make_scoped<console_output_target_t>(log_level_t::log_level_notice);
-    priority_routing.push_back(std::move(console_target));
 
     // This is how rapidjson recommends doing this.
     char readBuffer[65536];
@@ -156,13 +161,13 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
             for (rapidjson::SizeType i = 0; i < files.Size(); ++i) {
                 if (!files[i]["filename"].IsString()) {
                     enable_auditing_ = false;
-                    logWRN("Auditing configuration error: filename was not a string.\n");
+                    logERR("Auditing configuration error: filename was not a string.\n");
                     break;
                 }
 
                 std::string newfilename = files[i]["filename"].GetString();
                 if (newfilename.length() == 0) {
-                    logWRN("Auditing configuration error: invalid filename.\n");
+                    logERR("Auditing configuration error: invalid filename.\n");
                     enable_auditing_ = false;
                     break;
                 }
@@ -185,7 +190,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
                         for (auto it = tags.Begin(); it != tags.End(); ++it) {
                             auto tag = string_to_type.find(it->GetString());
                             if (tag == string_to_type.end()) {
-                                logWRN("Auditing configuration error: unknown tag %s\n",
+                                logERR("Auditing configuration error: unknown tag %s\n",
                                        it->GetString());
                             } else {
                                 new_file->tags.push_back(tag->second);
@@ -215,10 +220,9 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
         priority_routing.push_back(scoped_ptr_t<audit_log_output_target_t>(syslog_target));
     }
 
+
     if (enable_auditing_) {
         logNTC("Audit logging enabled.\n");
-    } else {
-        logWRN("Audit logging disabled\n");
     }
 }
 
@@ -228,6 +232,7 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
         boost::bind(&thread_pool_audit_log_writer_t::uninstall_on_thread, this, _1));
 
     drainer.drain();
+
     for (auto &&output_target : priority_routing) {
         on_thread_t rethreader(output_target->home_thread());
         output_target.reset();
@@ -257,17 +262,18 @@ void thread_pool_audit_log_writer_t::uninstall_on_thread(int i) {
     on_thread_t thread_switcher((threadnum_t(i)));
     guarantee(TLS_get_global_audit_log_writer() == this);
     TLS_set_global_audit_log_writer(nullptr);
-    delete TLS_get_global_audit_log_drainer();
+    auto_drainer_t *audit_log_drainer = TLS_get_global_audit_log_drainer();
     TLS_set_global_audit_log_drainer(nullptr);
+    delete audit_log_drainer;
 }
 
 std::string thread_pool_audit_log_writer_t::format_audit_log_message(
-    counted_t<audit_log_message_t> msg,
+    const counted_t<audit_log_message_t> &msg,
     bool for_console = false) {
     std::string msg_string;
 
     bool ends_in_newline =
-        msg->message.length() == 0 ? false : msg->message.back() == '\n';
+        !msg->message.empty() && msg->message.back() == '\n';
     if (!for_console) {
         msg_string = strprintf("%s %s [%s]: %s%s",
                                format_time(msg->timestamp, local_or_utc_time_t::utc).c_str(),
@@ -287,7 +293,7 @@ std::string format_log_message(const counted_t<audit_log_message_t> &m, bool for
     // never write an info level message to console
     guarantee(!(for_console && m->level == log_level_info));
 
-    std::string message = m->message;
+    const std::string &message = m->message;
     std::string message_reformatted;
 
     std::string prepend;
@@ -349,6 +355,15 @@ std::string format_log_message(const counted_t<audit_log_message_t> &m, bool for
 
 
 void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
+    // Non-audit log messages must not block, because
+    // that's what code calling the log*** functions
+    // is expecting.
+    // Ignoring the capacity makes sure we don't block.
+    bool ignore_capacity = msg->type == log_type_t::log;
+    DEBUG_ONLY(scoped_ptr_t<assert_finite_coro_waiting_t> finite_coro_waiting);
+    if (ignore_capacity) {
+        DEBUG_ONLY(finite_coro_waiting.init(new assert_finite_coro_waiting_t(__FILE__, __LINE__)));
+    }
     // Select targets by configured severity level
     for (const auto &it : priority_routing) {
         if (it->min_severity <= msg->level) {
@@ -359,7 +374,7 @@ void thread_pool_audit_log_writer_t::write(counted_t<audit_log_message_t> msg) {
                           msg->type) != it->tags.end()) {
 
                 if (enable_auditing() || !it->respects_enabled_flag) {
-                    it->emplace_message(msg, false);
+                    it->emplace_message(msg, ignore_capacity);
                 }
             }
         }

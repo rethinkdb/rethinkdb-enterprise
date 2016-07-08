@@ -30,8 +30,6 @@ private:
     // This is initialized once at program start when there is only one thread.
     static struct timespec _uptime_reference;
 public:
-    audit_log_message_t() { }
-
     audit_log_message_t(log_level_t _level,
                         log_type_t _type,
                         std::string _message) :
@@ -39,7 +37,7 @@ public:
         uptime(subtract_timespecs(clock_monotonic(), _uptime_reference)),
         type(_type),
         level(_level),
-        message(_message) { }
+        message(std::move(_message)) { }
 
     static void set_uptime_reference() {
         _uptime_reference = clock_monotonic();
@@ -49,7 +47,11 @@ public:
 
     log_type_t type;
     log_level_t level;
-    std::string message;
+    // The `const` here is important for correctness.
+    // In the pre-GCC 5.0 ABI, std::string was COW which would break
+    // the logging code. Having this field `const` avoids copies when
+    // calling certain operations on the string, such as `message.back()`.
+    const std::string message;
 };
 
 // Handles output to a file, syslog, or other output target.
@@ -64,7 +66,11 @@ public:
         queue_size(0),
         write_pump([&] (signal_t*) {flush();}) { }
 
-    virtual ~audit_log_output_target_t() { }
+    virtual ~audit_log_output_target_t() {
+        // Flush any pending messages
+        cond_t non_interruptor;
+        write_pump.flush(&non_interruptor);
+    }
 
     virtual bool write_internal(std::vector<counted_t<audit_log_message_t> > *local_queue,
                                 std::string *error_message) = 0;
@@ -146,7 +152,9 @@ public:
     explicit thread_pool_audit_log_writer_t(log_write_issue_tracker_t *log_tracker);
     ~thread_pool_audit_log_writer_t();
 
-    static std::string format_audit_log_message(counted_t<audit_log_message_t> msg, bool for_console);
+    static std::string format_audit_log_message(
+        const counted_t<audit_log_message_t> &msg,
+        bool for_console);
     void write(counted_t<audit_log_message_t> msg);
 
     bool enable_auditing() { return enable_auditing_; }
