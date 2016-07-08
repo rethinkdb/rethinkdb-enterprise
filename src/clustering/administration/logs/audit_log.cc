@@ -235,6 +235,10 @@ thread_pool_audit_log_writer_t::~thread_pool_audit_log_writer_t() {
 
     for (auto &&output_target : priority_routing) {
         on_thread_t rethreader(output_target->home_thread());
+        // Flush any pending messages
+        cond_t non_interruptor;
+        output_target->write_pump.flush(&non_interruptor);
+        output_target->write_pump.drain();
         output_target.reset();
     }
     priority_routing.clear();

@@ -66,11 +66,7 @@ public:
         queue_size(0),
         write_pump([&] (signal_t*) {flush();}) { }
 
-    virtual ~audit_log_output_target_t() {
-        // Flush any pending messages
-        cond_t non_interruptor;
-        write_pump.flush(&non_interruptor);
-    }
+    virtual ~audit_log_output_target_t() { }
 
     virtual bool write_internal(std::vector<counted_t<audit_log_message_t> > *local_queue,
                                 std::string *error_message) = 0;
