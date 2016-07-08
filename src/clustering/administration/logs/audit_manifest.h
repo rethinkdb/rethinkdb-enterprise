@@ -105,4 +105,4 @@ std::string get_audit_manifest(const std::string &path) {
     return manifest;
 }
 
-#endif CLUSTERING_ADMINISTRATION_LOGS_AUDIT_MAN IFEST_HPP_
+#endif //CLUSTERING_ADMINISTRATION_LOGS_AUDIT_MANIFEST_HPP_
