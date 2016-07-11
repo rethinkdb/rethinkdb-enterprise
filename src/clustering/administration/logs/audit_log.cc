@@ -144,7 +144,7 @@ thread_pool_audit_log_writer_t::thread_pool_audit_log_writer_t(
         enable_auditing_ = false;
     }
     if (d.HasParseError()) {
-        logERR("\nAudit Config file Error(offset %lu): %s\n",
+        logERR("\nAudit Config file Error(offset %" PRIu64 "): %s\n",
                static_cast<uint64_t>(d.GetErrorOffset()),
                GetParseError_En(d.GetParseError()));
         logERR("Audit logging will be DISABLED.\n");
