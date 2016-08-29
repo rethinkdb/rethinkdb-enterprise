@@ -74,6 +74,7 @@
 #define RETHINKDB_DUMP_SCRIPT "rethinkdb-dump"
 #define RETHINKDB_RESTORE_SCRIPT "rethinkdb-restore"
 #define RETHINKDB_INDEX_REBUILD_SCRIPT "rethinkdb-index-rebuild"
+#define RETHINKDB_REPL_SCRIPT "rethinkdb-repl"
 
 namespace cluster_defaults {
 const int reconnect_timeout = (24 * 60 * 60);    // 24 hours (in secs)
@@ -1217,8 +1218,9 @@ void run_rethinkdb_serve(const base_path_t &base_path,
                                                   &non_interruptor);
                     logNTC("Migrating auth metadata to v2.3");
                     migrate_auth_metadata_v2_1_to_v2_3(&txn, &non_interruptor);
-                    /* End the inner scope here so we flush the new metadata file before
+                    /* Commit the transaction here so we flush the new metadata file before
                     we delete the old auth file */
+                    txn.commit();
                 }
                 if (remove(auth_path.permanent_path().c_str()) != 0) {
                     fail_due_to_user_error(
@@ -1238,6 +1240,7 @@ void run_rethinkdb_serve(const base_path_t &base_path,
                     ++config.version;
                     txn.write(mdkey_server_config(), config, &non_interruptor);
                 }
+                txn.commit();
             }
             if (!initial_password.empty()) {
                 /* Apply the initial password if there isn't one already. */
@@ -1267,6 +1270,7 @@ void run_rethinkdb_serve(const base_path_t &base_path,
                     logNTC("Ignoring --initial-password option because the admin "
                            "password is already configured.");
                 }
+                txn.commit();
             }
         }
 
@@ -2306,6 +2310,11 @@ int main_rethinkdb_index_rebuild(int, char *argv[]) {
     return EXIT_FAILURE;
 }
 
+int main_rethinkdb_repl(int, char *argv[]) {
+    run_backup_script(RETHINKDB_REPL_SCRIPT, argv + 1);
+    return EXIT_FAILURE;
+}
+
 int main_rethinkdb_porcelain(int argc, char *argv[]) {
     std::vector<options::option_t> options;
     std::vector<options::help_section_t> help;
@@ -2469,6 +2478,7 @@ void help_rethinkdb_porcelain() {
     printf("    'rethinkdb dump': export and compress data from an existing cluster\n");
     printf("    'rethinkdb restore': import compressed data into an existing cluster\n");
     printf("    'rethinkdb index-rebuild': rebuild outdated secondary indexes\n");
+    printf("    'rethinkdb repl': start a Python REPL with the RethinkDB driver\n");
 #ifdef _WIN32
     printf("    'rethinkdb install-service': install RethinkDB as a Windows service\n");
     printf("    'rethinkdb remove-service': remove a previously installed Windows service\n");
@@ -2544,6 +2554,13 @@ void help_rethinkdb_index_rebuild() {
     char dummy_arg[] = RETHINKDB_INDEX_REBUILD_SCRIPT;
     char* args[3] = { dummy_arg, help_arg, nullptr };
     run_backup_script(RETHINKDB_INDEX_REBUILD_SCRIPT, args);
+}
+
+void help_rethinkdb_repl() {
+    char help_arg[] = "--help";
+    char dummy_arg[] = RETHINKDB_REPL_SCRIPT;
+    char* args[3] = { dummy_arg, help_arg, nullptr };
+    run_backup_script(RETHINKDB_REPL_SCRIPT, args);
 }
 
 #ifdef _WIN32
