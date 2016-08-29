@@ -63,7 +63,7 @@ parse_opts () {
 }
 
 git_gen_version () {
-    if version=$(git describe --tags --match "v[0-9]*" --abbrev=6 HEAD 2> /dev/null)-enterprise; then
+    if version=$(git describe --tags --match "v[0-9]*" --abbrev=6 HEAD 2> /dev/null); then
         if git_is_dirty; then
             echo "$version-dirty"
         else
