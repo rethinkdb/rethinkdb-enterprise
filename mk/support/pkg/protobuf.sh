@@ -1,7 +1,7 @@
 
 version=2.5.0
 
-src_url=http://protobuf.googlecode.com/files/protobuf-$version.tar.bz2
+src_url=https://github.com/google/protobuf/releases/download/v$version/protobuf-$version.tar.bz2
 src_url_sha1=62c10dcdac4b69cc8c6bb19f73db40c264cb2726
 
 pkg_install-include () {
@@ -14,7 +14,7 @@ pkg_install-include () {
 pkg_install () (
     pkg_copy_src_to_build
 
-    configure_flags=
+    configure_flags="--libdir=${install_dir}/lib"
 
     if [[ "$CROSS_COMPILING" = 1 ]]; then
         cross_build_dir=$build_dir/cross_build

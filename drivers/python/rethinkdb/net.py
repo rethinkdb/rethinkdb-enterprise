@@ -287,9 +287,14 @@ class SocketWrapper(object):
                         self._socket = ssl.wrap_socket(
                             self._socket, cert_reqs=ssl.CERT_REQUIRED, ssl_version=ssl.PROTOCOL_SSLv23,
                             ca_certs=self.ssl["ca_certs"])
-                except IOError as exc:
+                except IOError as err:
                     self._socket.close()
-                    raise ReqlDriverError("SSL handshake failed (see server log for more information): %s" % str(exc))
+                    
+                    if 'EOF occurred in violation of protocol' in str(err) or 'sslv3 alert handshake failure' in str(err):
+                        # probably on an older version of OpenSSL
+                        raise ReqlDriverError("SSL handshake failed, likely because Python is linked against an old version of OpenSSL that does not support either TLSv1.2 or any of the allowed ciphers. This can be worked around by lowering the security setting on the server with the options `--tls-min-protocol TLSv1 --tls-ciphers EECDH+AESGCM:EDH+AESGCM:AES256+EECDH:AES256+EDH:AES256-SHA` (see server log for more information): %s" % str(err))
+                    else:
+                        raise ReqlDriverError("SSL handshake failed (see server log for more information): %s" % str(err))
                 try:
                     match_hostname(self._socket.getpeercert(), hostname=self.host)
                 except CertificateError:
@@ -657,19 +662,22 @@ def connect(
 
 def set_loop_type(library):
     global connection_type
-
+    import pkg_resources
+    
     # find module file
-    moduleName = 'net_%s' % library
-    modulePath = None
-    driverDir = os.path.realpath(os.path.dirname(__file__))
-    if os.path.isfile(os.path.join(driverDir, library + '_net', moduleName + '.py')):
-        modulePath = os.path.join(driverDir, library + '_net', moduleName + '.py')
-    else:
+    manager = pkg_resources.ResourceManager()
+    libPath = '%(library)s_net/net_%(library)s.py' % {'library':library}
+    if not manager.resource_exists(__name__, libPath):
         raise ValueError('Unknown loop type: %r' % library)
-
+    
     # load the module
+    modulePath = manager.resource_filename(__name__, libPath)
+    moduleName = 'net_%s' % library
     moduleFile, pathName, desc = imp.find_module(moduleName, [os.path.dirname(modulePath)])
     module = imp.load_module('rethinkdb.' + moduleName, moduleFile, pathName, desc)
-
+    
     # set the connection type
     connection_type = module.Connection
+    
+    # cleanup
+    manager.cleanup_resources()
