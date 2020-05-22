@@ -1,34 +1,45 @@
 # Contributing
 
-We're happy you want to contribute! You can help us in different ways:
+Contributions are welcome, and they are greatly appreciated! Every little bit helps! You can contribute in many ways, not limited to this document.
 
-- [Open an issue][1] with suggestions for improvements
-- Fork this repository and submit a pull request
-- Improve the [documentation][2] (separate repository)
+## Types of Contributions
 
-[1]: https://github.com/rethinkdb/rethinkdb/issues
-[2]: https://github.com/rethinkdb/docs
+### Report Bugs
 
-To submit a pull request, fork the [RethinkDB repository][3] and then clone your fork:
+First of all, please check that the bug is not reported yet. If that's already reported then upvote the existing bug instead of opening a new bug report.
 
-    git clone git@github.com:<your-name>/rethinkdb.git
+Report bugs at https://github.com//issues. If you are reporting a bug, please include:
 
-[3]: https://github.com/rethinkdb/rethinkdb
+- Your operating system name and version.
+- Any details about your local setup that might be helpful in troubleshooting.
+- Detailed steps to reproduce the bug.
 
-Make your suggested changes, `git push` and then [submit a pull request][4]. Note that before we can accept your pull requests, you need to sign our [Contributor License Agreement][5].
+### Fix Bugs
 
-[4]: https://github.com/rethinkdb/rethinkdb/compare/
-[5]: http://rethinkdb.com/community/cla/
+Look through the GitHub issues for bugs. Anything tagged with "bug", "good first issue" and "help wanted" is open to whoever wants to implement it.
 
-## Resources
+### Implement Features
 
-Some useful resources to get started:
-* [Building RethinkDB][6] from source
-* Overview of [what to find where][7] in the server source directory
-* Introduction to the [RethinkDB driver protocol][8]
-* [C++ coding style][9] for the RethinkDB server
+Look through the GitHub issues for features. Anything tagged with "enhancement",  "good first issue" and "help wanted" is open to whoever wants to implement it. In case you added a new Rule or Precondition, do not forget to add them to the docs as well.
 
-[6]: http://rethinkdb.com/docs/build/
-[7]: src/README.md
-[8]: http://rethinkdb.com/docs/driver-spec/
-[9]: STYLE.md
+### Write Documentation
+
+RethinkDB could always use more documentation, whether as part of the official docs, in docstrings, or even on the web in blog posts, articles, and such. To extend the documentation on the website, visit the [www](https://github.com/rethinkdb/www) repo. For extending the docs, you can check the [docs](https://github.com/rethinkdb/docs) repo.
+
+### Submit A Feature
+
+First of all, please check that the feature request is not reported yet. If that's already reported then upvote the existing request instead of opening a new one.
+
+If you are proposing a feature:
+
+- Check if there is an opened feature request for the same idea.
+- Explain in detail how it would work.
+- Keep the scope as narrow as possible, to make it easier to implement.
+- Remember that this is an open-source project, and that contributions are welcome :)
+
+## Pull Request Guidelines
+
+Before you submit a pull request, check that it meets these guidelines:
+
+1. The pull request should include tests (if applicable)
+2. If the pull request adds functionality, the docs should be updated too.
